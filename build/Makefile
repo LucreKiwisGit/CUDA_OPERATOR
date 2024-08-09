@@ -129,6 +129,30 @@ cuda_operators_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/build
 .PHONY : cuda_operators_test/fast
 
+kernels/directConv2d.o: kernels/directConv2d.cc.o
+.PHONY : kernels/directConv2d.o
+
+# target to build an object file
+kernels/directConv2d.cc.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.o
+.PHONY : kernels/directConv2d.cc.o
+
+kernels/directConv2d.i: kernels/directConv2d.cc.i
+.PHONY : kernels/directConv2d.i
+
+# target to preprocess a source file
+kernels/directConv2d.cc.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.i
+.PHONY : kernels/directConv2d.cc.i
+
+kernels/directConv2d.s: kernels/directConv2d.cc.s
+.PHONY : kernels/directConv2d.s
+
+# target to generate assembly for a file
+kernels/directConv2d.cc.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.s
+.PHONY : kernels/directConv2d.cc.s
+
 kernels/implGEMM.o: kernels/implGEMM.cu.o
 .PHONY : kernels/implGEMM.o
 
@@ -234,6 +258,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... cuda_operators_test"
+	@echo "... kernels/directConv2d.o"
+	@echo "... kernels/directConv2d.i"
+	@echo "... kernels/directConv2d.s"
 	@echo "... kernels/implGEMM.o"
 	@echo "... kernels/implGEMM.i"
 	@echo "... kernels/implGEMM.s"
