@@ -129,6 +129,30 @@ cuda_operators_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/build
 .PHONY : cuda_operators_test/fast
 
+kernels/GEMM.o: kernels/GEMM.cu.o
+.PHONY : kernels/GEMM.o
+
+# target to build an object file
+kernels/GEMM.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.o
+.PHONY : kernels/GEMM.cu.o
+
+kernels/GEMM.i: kernels/GEMM.cu.i
+.PHONY : kernels/GEMM.i
+
+# target to preprocess a source file
+kernels/GEMM.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.i
+.PHONY : kernels/GEMM.cu.i
+
+kernels/GEMM.s: kernels/GEMM.cu.s
+.PHONY : kernels/GEMM.s
+
+# target to generate assembly for a file
+kernels/GEMM.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.s
+.PHONY : kernels/GEMM.cu.s
+
 kernels/directConv2d.o: kernels/directConv2d.cc.o
 .PHONY : kernels/directConv2d.o
 
@@ -201,29 +225,53 @@ main.cu.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/main.cu.s
 .PHONY : main.cu.s
 
-test/implicitGemm.o: test/implicitGemm.cu.o
-.PHONY : test/implicitGemm.o
+test/test_GEMM.o: test/test_GEMM.cu.o
+.PHONY : test/test_GEMM.o
 
 # target to build an object file
-test/implicitGemm.cu.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/implicitGemm.cu.o
-.PHONY : test/implicitGemm.cu.o
+test/test_GEMM.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o
+.PHONY : test/test_GEMM.cu.o
 
-test/implicitGemm.i: test/implicitGemm.cu.i
-.PHONY : test/implicitGemm.i
+test/test_GEMM.i: test/test_GEMM.cu.i
+.PHONY : test/test_GEMM.i
 
 # target to preprocess a source file
-test/implicitGemm.cu.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/implicitGemm.cu.i
-.PHONY : test/implicitGemm.cu.i
+test/test_GEMM.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.i
+.PHONY : test/test_GEMM.cu.i
 
-test/implicitGemm.s: test/implicitGemm.cu.s
-.PHONY : test/implicitGemm.s
+test/test_GEMM.s: test/test_GEMM.cu.s
+.PHONY : test/test_GEMM.s
 
 # target to generate assembly for a file
-test/implicitGemm.cu.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/implicitGemm.cu.s
-.PHONY : test/implicitGemm.cu.s
+test/test_GEMM.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.s
+.PHONY : test/test_GEMM.cu.s
+
+test/test_implicitGemm.o: test/test_implicitGemm.cu.o
+.PHONY : test/test_implicitGemm.o
+
+# target to build an object file
+test/test_implicitGemm.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o
+.PHONY : test/test_implicitGemm.cu.o
+
+test/test_implicitGemm.i: test/test_implicitGemm.cu.i
+.PHONY : test/test_implicitGemm.i
+
+# target to preprocess a source file
+test/test_implicitGemm.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.i
+.PHONY : test/test_implicitGemm.cu.i
+
+test/test_implicitGemm.s: test/test_implicitGemm.cu.s
+.PHONY : test/test_implicitGemm.s
+
+# target to generate assembly for a file
+test/test_implicitGemm.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.s
+.PHONY : test/test_implicitGemm.cu.s
 
 utils/getopt.o: utils/getopt.cpp.o
 .PHONY : utils/getopt.o
@@ -258,6 +306,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... cuda_operators_test"
+	@echo "... kernels/GEMM.o"
+	@echo "... kernels/GEMM.i"
+	@echo "... kernels/GEMM.s"
 	@echo "... kernels/directConv2d.o"
 	@echo "... kernels/directConv2d.i"
 	@echo "... kernels/directConv2d.s"
@@ -267,9 +318,12 @@ help:
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
-	@echo "... test/implicitGemm.o"
-	@echo "... test/implicitGemm.i"
-	@echo "... test/implicitGemm.s"
+	@echo "... test/test_GEMM.o"
+	@echo "... test/test_GEMM.i"
+	@echo "... test/test_GEMM.s"
+	@echo "... test/test_implicitGemm.o"
+	@echo "... test/test_implicitGemm.i"
+	@echo "... test/test_implicitGemm.s"
 	@echo "... utils/getopt.o"
 	@echo "... utils/getopt.i"
 	@echo "... utils/getopt.s"
