@@ -7,7 +7,7 @@ CUDA_DEFINES =
 
 CUDA_INCLUDES = -I/home/lucre/Project/Cuda_operator/include -I/usr/local/cuda/include -I/usr/include/aarch64-linux-gnu
 
-CUDA_FLAGS = -g --generate-code=arch=compute_60,code=[compute_60,sm_60] --generate-code=arch=compute_61,code=[compute_61,sm_61] --generate-code=arch=compute_70,code=[compute_70,sm_70] --generate-code=arch=compute_75,code=[compute_75,sm_75]   -std=c++14 -pthread -g -std=c++14
+CUDA_FLAGS = -g --generate-code=arch=compute_60,code=[compute_60,sm_60] --generate-code=arch=compute_61,code=[compute_61,sm_61] --generate-code=arch=compute_70,code=[compute_70,sm_70] --generate-code=arch=compute_75,code=[compute_75,sm_75]   -std=c++14 -pthread -g -G -std=c++14
 
 CXX_DEFINES = 
 

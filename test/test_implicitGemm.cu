@@ -20,11 +20,11 @@ void implicit_gemm_fp16_test() {
 
     int caseSize = 6;
 
-    int N[caseSize] = {16, 16, 16, 2, 2, 2};
-    int C[caseSize] = {128, 256, 64, 1920, 640, 320};
-    int H[caseSize] = {64,   32,  128,   32,  64,  64};
-    int W[caseSize] = {64,   32,  128,   32,  64,  64};
-    int K[caseSize] = {27,  256,   64,  640, 640,   4};
+    int N[caseSize] = {64, 256, 16, 32, 2, 2};
+    int C[caseSize] = {256, 192, 256, 256, 1280, 960};
+    int H[caseSize] = {14,   14,  26,   14,  16,  64};
+    int W[caseSize] = {14,   14,  26,   14,  16,  64};
+    int K[caseSize] = {256,  192,   512,  256, 1280,   32};
     int R[caseSize] = { 3,    3,    3,    3,   3,   3};
     int S[caseSize] = { 3,    3,    3,    3,   3,   3};
     int P[caseSize] = { 1,    1,    1,    1,   1,   1};
@@ -99,21 +99,34 @@ void implicit_gemm_fp16_test() {
         // cudaMalloc((void **)&output_device, n * k * OH * OW * sizeof(float));
 
         // random input
+        // for (int ii = 0; ii < n * c * h * w; ii++) {
+        //     input[ii] = (float)rand() / RAND_MAX;
+        // }
+
+        // for (int ii = 0; ii < k * c * r * s; ii++) {
+        //     weight[ii] = (float)rand() / RAND_MAX;
+        // }
+
+        // for (int ii = 0; ii < k; ii++) {
+        //     bias[ii] = (float)rand() / RAND_MAX;
+        // }
+
+        // 固定输入，用于debug
         for (int ii = 0; ii < n * c * h * w; ii++) {
-            input[ii] = rand() / RAND_MAX;
+            input[ii] = (float)ii / 100;
         }
 
         for (int ii = 0; ii < k * c * r * s; ii++) {
-            weight[ii] = rand() / RAND_MAX;
+            weight[ii] = (float)ii / 100;
         }
 
         for (int ii = 0; ii < k; ii++) {
-            bias[ii] = rand() / RAND_MAX;
+            bias[ii] = (float)ii / 100;
         }
 
         for (int ii = 0; ii < n * k * OH * OW; ii++) {
-            output[ii] = rand() / RAND_MAX;
-            output_benchmark[ii] = rand() / RAND_MAX;
+            output[ii] = (float)rand() / RAND_MAX;
+            output_benchmark[ii] = (float)rand() / RAND_MAX;
         }
 
         cudaMemcpy(input_device.get(), input.get(), n * c * h * w * sizeof(float), cudaMemcpyHostToDevice);
@@ -146,36 +159,48 @@ void implicit_gemm_fp16_test() {
         param.Oh = OH;
         param.Ow = OW;
 
+        printf("================Beigin=========================\n");
+        printf("%2d %2d %2d %2d %d %d %2d\n", n, h, w, c, r, s, k);
+
+        
         // warm up
         launch_implgemm(param);
+        // direct_conv2dCuDNN(param);
 
         cudaMemcpy(output.get(), output_device.get(), n * k * OH * OW * sizeof(float), cudaMemcpyDeviceToHost);
 
-
         // 验证正确率
-        if (i == 0) {
-            auto start_ref = std::chrono::steady_clock::now();
-            omp_set_num_threads(8);
-            direct_conv2dCpu(param);
-            auto end_ref = std::chrono::steady_clock::now();
+        
+        auto start_ref = std::chrono::steady_clock::now();
+        omp_set_num_threads(8);
+        // direct_conv2dCpu(param);
+        direct_conv2dCuDNN(param);
+        cudaMemcpy(output_benchmark.get(), output_device.get(), n * k * OH * OW * sizeof(float), cudaMemcpyDeviceToHost);
 
-            int error = 0;
-            for (int ii = 0; ii < n * k * OH * OW; ii++) {
-                if (abs(output[ii] - output_benchmark[ii]) > getPrecision(output[ii])) {
-                    printf("error, postion:%d, gpuvalue:%f, cpuvalue:%f\n", ii, output_benchmark[ii], output[ii]);
-                    error++;
+        auto end_ref = std::chrono::steady_clock::now();
+
+
+        int error = 0;
+        for (int ii = 0; ii < n * k * OH * OW; ii++) {
+            if (abs(output[ii] - output_benchmark[ii]) > abs(output[ii]) * 0.00001) {
+                printf("error, postion:%d, cudnnvalue:%.8f, implGEMMvalue:%.8f\n", ii, output_benchmark[ii], output[ii]);
+                error++;
+                if (error > 0) {
                     break;
                 }
             }
-
-            
-            auto time_elapsed_ref = std::chrono::duration_cast<std::chrono::milliseconds>(end_ref - start_ref);
-            double gflops = flopsPerConv / (time_elapsed_ref.count() / 1000.0) / 1e9 ;
-            printf("%2d %2d %2d %2d %d %d %2d\n", n, h, w, c, r, s, k);
-            printf(" time: %ld ms\n", time_elapsed_ref.count());
-            printf("Performance :%f GFlops\n",  gflops);
-            printf("================finish,error:%d=========================\n", error);
         }
+
+        launch_implgemm(param);
+
+        
+        auto time_elapsed_ref = std::chrono::duration_cast<std::chrono::milliseconds>(end_ref - start_ref);
+        double gflops = flopsPerConv / (time_elapsed_ref.count() / 1000.0) / 1e9 ;
+
+        // printf(" time: %ld ms\n", time_elapsed_ref.count());
+        printf("Cudnn Performance :%f GFlops\n",  gflops);
+        printf("================finish,error:%d=========================\n", error);
+    
         
 
         // cost time test
@@ -202,7 +227,7 @@ void implicit_gemm_fp16_test() {
         cudaEventDestroy(stop);
 
         float timePerConv = time_elapsed / iternum;
-        double gflops = flopsPerConv / (time_elapsed / 1000.0) / 1e9;
+        gflops = flopsPerConv / (time_elapsed / 1000.0) / 1e9;
         printf("%2d %2d %2d %2d %d %d %2d\n", n, h, w, c, r, s, k);
         printf("time: %f ms\n", timePerConv);
         printf("Performance :%f GFlops\n",  gflops);

@@ -219,6 +219,12 @@ CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 //Use static cuda runtime
 CUDA_USE_STATIC_CUDA_RUNTIME:BOOL=OFF
 
+//Path to a file.
+CUDNN_INCLUDE_DIR:PATH=/usr/include
+
+//Path to a library.
+CUDNN_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libcudnn.so
+
 //CXX compiler flags for OpenMP parallelization
 OpenMP_CXX_FLAGS:STRING=-fopenmp
 

@@ -23,9 +23,31 @@ link_directories(/usr/lib/aarch64-linux-gnu)
 find_package(OpenMP REQUIRED)
 include_directories(${OpenMP_INCLUDE_DIRS})
 
+# 设置 cuDNN 的路径，假设 cuDNN 已经安装在系统的标准路径中
+# 如果没有安装在标准路径中，可以手动设置 CUDNN_INCLUDE_DIR 和 CUDNN_LIBRARY
+find_path(CUDNN_INCLUDE_DIR cudnn.h
+  PATHS /usr/local/cuda/include
+)
+find_library(CUDNN_LIBRARY cudnn
+  PATHS /usr/local/cuda/lib64
+)
+
+# 如果找不到 cudnn.h 或 libcudnn.so，抛出错误
+if(NOT CUDNN_INCLUDE_DIR)
+  message(FATAL_ERROR "Could not find cuDNN include directory")
+endif()
+
+if(NOT CUDNN_LIBRARY)
+  message(FATAL_ERROR "Could not find cuDNN library")
+endif()
+
+include_directories(${CUDNN_INCLUDE_DIR})
+
+
 
 FILE(GLOB SRC_FILES ${PROJECT_SOURCE_DIR}/test/*.cpp ${PROJECT_SOURCE_DIR}/test/*.cu ${PROJECT_SOURCE_DIR}/kernel/*.cpp 
                     ${PROJECT_SOURCE_DIR}/kernels/implGEMM.cu ${PROJECT_SOURCE_DIR}/kernels/directConv2d.cc ${PROJECT_SOURCE_DIR}/kernels/GEMM.cu
+                    ${PROJECT_SOURCE_DIR}/cudnn/*.cc
                     ${PROJECT_SOURCE_DIR}/include/*.h 
                     ${PROJECT_SOURCE_DIR}/utils/*.cpp
                     ${PROJECT_SOURCE_DIR}/main.cu)
@@ -35,10 +57,10 @@ FILE(GLOB SRC_FILES ${PROJECT_SOURCE_DIR}/test/*.cpp ${PROJECT_SOURCE_DIR}/test/
 
 
 add_executable(${TARGET_NAME} ${SRC_FILES})
-target_link_libraries(${TARGET_NAME} cuda cudart ${OpenMP_CXX_LIBRARIES} cublas)
+target_link_libraries(${TARGET_NAME} cuda cudart ${OpenMP_CXX_LIBRARIES} cublas ${CUDNN_LIBRARY})
 
-# target_compile_options(${TARGET_NAME} PRIVATE
-#     $<$<COMPILE_LANGUAGE:CUDA>:-G>  # CUDA 编译选项示例
-# )
+target_compile_options(${TARGET_NAME} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-G>  # CUDA 编译选项示例
+)
 
 add_definitions(-pthread -g)

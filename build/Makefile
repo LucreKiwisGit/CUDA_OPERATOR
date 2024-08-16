@@ -129,6 +129,30 @@ cuda_operators_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/build
 .PHONY : cuda_operators_test/fast
 
+cudnn/conv.o: cudnn/conv.cc.o
+.PHONY : cudnn/conv.o
+
+# target to build an object file
+cudnn/conv.cc.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.o
+.PHONY : cudnn/conv.cc.o
+
+cudnn/conv.i: cudnn/conv.cc.i
+.PHONY : cudnn/conv.i
+
+# target to preprocess a source file
+cudnn/conv.cc.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.i
+.PHONY : cudnn/conv.cc.i
+
+cudnn/conv.s: cudnn/conv.cc.s
+.PHONY : cudnn/conv.s
+
+# target to generate assembly for a file
+cudnn/conv.cc.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.s
+.PHONY : cudnn/conv.cc.s
+
 kernels/GEMM.o: kernels/GEMM.cu.o
 .PHONY : kernels/GEMM.o
 
@@ -306,6 +330,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... cuda_operators_test"
+	@echo "... cudnn/conv.o"
+	@echo "... cudnn/conv.i"
+	@echo "... cudnn/conv.s"
 	@echo "... kernels/GEMM.o"
 	@echo "... kernels/GEMM.i"
 	@echo "... kernels/GEMM.s"

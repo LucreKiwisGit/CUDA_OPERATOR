@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.o"
+  "CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.o.d"
   "CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.o"
   "CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.o.d"
   "CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.o"

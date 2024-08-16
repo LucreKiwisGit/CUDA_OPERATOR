@@ -28,4 +28,6 @@ typedef struct {
 
 void launch_implgemm(param_t param);
 
+void direct_conv2dCuDNN(param_t param);
+
 #endif
