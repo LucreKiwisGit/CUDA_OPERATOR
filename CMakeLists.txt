@@ -59,8 +59,8 @@ FILE(GLOB SRC_FILES ${PROJECT_SOURCE_DIR}/test/*.cpp ${PROJECT_SOURCE_DIR}/test/
 add_executable(${TARGET_NAME} ${SRC_FILES})
 target_link_libraries(${TARGET_NAME} cuda cudart ${OpenMP_CXX_LIBRARIES} cublas ${CUDNN_LIBRARY})
 
-target_compile_options(${TARGET_NAME} PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-G>  # CUDA 编译选项示例
-)
+# target_compile_options(${TARGET_NAME} PRIVATE
+#     $<$<COMPILE_LANGUAGE:CUDA>:-G>  # CUDA 编译选项示例
+# )
 
 add_definitions(-pthread -g)

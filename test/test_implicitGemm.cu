@@ -20,17 +20,17 @@ void implicit_gemm_fp16_test() {
 
     int caseSize = 6;
 
-    int N[caseSize] = {64, 256, 16, 32, 2, 2};
-    int C[caseSize] = {256, 192, 256, 256, 1280, 960};
-    int H[caseSize] = {14,   14,  26,   14,  16,  64};
-    int W[caseSize] = {14,   14,  26,   14,  16,  64};
-    int K[caseSize] = {256,  192,   512,  256, 1280,   32};
-    int R[caseSize] = { 3,    3,    3,    3,   3,   3};
-    int S[caseSize] = { 3,    3,    3,    3,   3,   3};
-    int P[caseSize] = { 1,    1,    1,    1,   1,   1};
-    int Q[caseSize] = { 1,    1,    1,    1,   1,   1};
-    int U[caseSize] = { 1,    1,    1,    1,   1,   1};
-    int V[caseSize] = { 1,    1,    1,    1,   1,   1};
+    int N[caseSize] = {1, 64, 256, 16, 32, 2, 2};
+    int C[caseSize] = {3, 256, 192, 256, 256, 1280, 960};
+    int H[caseSize] = {12, 14,   14,  26,   14,  16,  64};
+    int W[caseSize] = {12, 14,   14,  26,   14,  16,  64};
+    int K[caseSize] = {1, 256,  192,   512,  256, 1280,   32};
+    int R[caseSize] = {3, 3,    3,    3,    3,   3,   3};
+    int S[caseSize] = {3, 3,    3,    3,    3,   3,   3};
+    int P[caseSize] = {1, 1,    1,    1,    1,   1,   1};
+    int Q[caseSize] = {1, 1,    1,    1,    1,   1,   1};
+    int U[caseSize] = {1, 1,    1,    1,    1,   1,   1};
+    int V[caseSize] = {1, 1,    1,    1,    1,   1,   1};
 
     for (int i = 0; i < caseSize; i++) {
         int n = N[i];
@@ -99,30 +99,30 @@ void implicit_gemm_fp16_test() {
         // cudaMalloc((void **)&output_device, n * k * OH * OW * sizeof(float));
 
         // random input
-        // for (int ii = 0; ii < n * c * h * w; ii++) {
-        //     input[ii] = (float)rand() / RAND_MAX;
-        // }
-
-        // for (int ii = 0; ii < k * c * r * s; ii++) {
-        //     weight[ii] = (float)rand() / RAND_MAX;
-        // }
-
-        // for (int ii = 0; ii < k; ii++) {
-        //     bias[ii] = (float)rand() / RAND_MAX;
-        // }
-
-        // 固定输入，用于debug
         for (int ii = 0; ii < n * c * h * w; ii++) {
-            input[ii] = (float)ii / 100;
+            input[ii] = (float)rand() / RAND_MAX;
         }
 
         for (int ii = 0; ii < k * c * r * s; ii++) {
-            weight[ii] = (float)ii / 100;
+            weight[ii] = (float)rand() / RAND_MAX;
         }
 
         for (int ii = 0; ii < k; ii++) {
-            bias[ii] = (float)ii / 100;
+            bias[ii] = (float)rand() / RAND_MAX;
         }
+
+        // // 固定输入，用于debug
+        // for (int ii = 0; ii < n * c * h * w; ii++) {
+        //     input[ii] = (float)ii / 100;
+        // }
+
+        // for (int ii = 0; ii < k * c * r * s; ii++) {
+        //     weight[ii] = (float)ii / 100;
+        // }
+
+        // for (int ii = 0; ii < k; ii++) {
+        //     bias[ii] = (float)ii / 100;
+        // }
 
         for (int ii = 0; ii < n * k * OH * OW; ii++) {
             output[ii] = (float)rand() / RAND_MAX;
@@ -203,11 +203,11 @@ void implicit_gemm_fp16_test() {
     
         
 
-        // cost time test
+        // 测量 CUDA 内核函数的执行时间
         cudaEvent_t start, stop;
         cudaEventCreate(&start);
         cudaEventCreate(&stop);
-        cudaEventRecord(start, 0);
+        cudaEventRecord(start, nullptr);  // 显式使用nullptr代替0
 
         float time_elapsed = 0.0;
 
@@ -216,21 +216,20 @@ void implicit_gemm_fp16_test() {
             launch_implgemm(param);
         }
 
-        
-
-        cudaEventRecord(stop, 0);
-
+        cudaEventRecord(stop, nullptr);
         cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&time_elapsed, start, stop);
+        cudaEventElapsedTime(&time_elapsed, start, stop);  // time_elapsed 以毫秒为单位
 
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
 
+        // 计算每次卷积的平均时间和GFlops
         float timePerConv = time_elapsed / iternum;
-        gflops = flopsPerConv / (time_elapsed / 1000.0) / 1e9;
-        printf("%2d %2d %2d %2d %d %d %2d\n", n, h, w, c, r, s, k);
-        printf("time: %f ms\n", timePerConv);
-        printf("Performance :%f GFlops\n",  gflops);
+        gflops = flopsPerConv / (timePerConv / 1000.0) / 1e9;
+
+        printf("n: %2d, h: %2d, w: %2d, c: %2d, r: %d, s: %d, k: %2d\n", n, h, w, c, r, s, k);
+        printf("Time per convolution: %f ms\n", timePerConv);
+        printf("Performance: %f GFlops\n", gflops);
 
     }
 }

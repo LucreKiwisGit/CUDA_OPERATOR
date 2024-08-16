@@ -151,7 +151,7 @@ __global__ void implgemm_kernel_2_v2(param_t param) {
         // 读取数据加载到shared memory
 
         int weightOffsetTmp = i + tx;
-        if (tx + i < rcs){
+        if (weightOffset < rcs){
             shWeight[ty][tx] = param.weight[weightOffset + weightOffsetTmp];
         }
         else {
@@ -163,12 +163,10 @@ __global__ void implgemm_kernel_2_v2(param_t param) {
         int cur_kw = ((i + ty) % kernel_size) % param.kw;
         int curH = posh_ori + cur_kh;
         int curW = posw_ori + cur_kw;
-        if (ty + i < rcs){
-            if (curH >= 0 && curW >= 0 && curH < param.h && curW < param.w)
-            {
-                int inputOffsetTmp = cur_c * intput_size + curH * param.w + curW;
-                shInput[ty][tx] = param.input[inputOffsetTmp + inputOffset];
-            }
+        if (curH >= 0 && curW >= 0 && curH < param.h && curW < param.w)
+        {
+            int inputOffsetTmp = cur_c * intput_size + curH * param.w + curW;
+            shInput[ty][tx] = param.input[inputOffsetTmp + inputOffset];
         }
         else {
             shInput[ty][tx] = 0.0;
@@ -178,10 +176,7 @@ __global__ void implgemm_kernel_2_v2(param_t param) {
 
         #pragma unroll
         for (int subcrs = 0; subcrs < 16; subcrs++) {
-            if (curH >= 0 && curW >= 0 && curH < param.h && curW < param.w)
-            {
-                sum += shInput[subcrs][tx] * shWeight[ty][subcrs];
-            }
+            sum += shInput[subcrs][tx] * shWeight[ty][subcrs];
         }
 
         __syncthreads();
@@ -208,10 +203,12 @@ __global__ void implgemm_kernel_3(param_t param) {
     // 这里做了转换，tx仍然相当于之前的x维度，对应着 Oh * Ow维度
     // ty 相当于之前的y维度, 对应着 k 维度
     uint32_t tx = threadIdx.x % 16;
-    uint32_t ty = threadIdx.y / 16;
+    uint32_t ty = threadIdx.x / 16;
     int bx = blockIdx.x;
     int by = blockIdx.y;
     int z = blockIdx.z;
+
+    
 
     // WARP TILE    
     const uint32_t lane_id = threadIdx.x % 32;
@@ -255,12 +252,11 @@ __global__ void implgemm_kernel_3(param_t param) {
         */
 
         int weight_offset_tmp = i + tx;
-        int cur_kc = (i + tx) / kernel_channel_size;
-        int cur_kh = ((i + tx) % kernel_channel_size) / param.kw;
-        int cur_kw = ((i + tx) % kernel_channel_size) % param.kw;
-
+        // int cur_kc = (i + tx) / kernel_channel_size;
+        // int cur_kh = ((i + tx) % kernel_channel_size) / param.kw;
+        // int cur_kw = ((i + tx) % kernel_channel_size) % param.kw;
         // int weightOffsetTmp = cur_kc * input_channel_size + cur_kh * param.kw + cur_kw; //这部分可以省略，其实和就是 input_tmp
-        if (cur_kc >= 0 && cur_kc < param.c && cur_kh >= 0 && cur_kh < param.kh && cur_kw >= 0 && cur_kw < param.kw){
+        if (weight_offset_tmp < kernel_size && weight_offset_tmp >= 0){
             shm_weight[ty][tx] = param.weight[weightOffset + weight_offset_tmp];    // 这里其实也需要判断是否越界
         }
         else {
@@ -269,8 +265,8 @@ __global__ void implgemm_kernel_3(param_t param) {
 
 
         int cur_c = (i + ty) / kernel_channel_size;
-        cur_kh = ((i + ty) % kernel_channel_size) / param.kw;
-        cur_kw = ((i + ty) % kernel_channel_size) % param.kw;
+        int cur_kh = ((i + ty) % kernel_channel_size) / param.kw;
+        int cur_kw = ((i + ty) % kernel_channel_size) % param.kw;
         int cur_h = pos_ori_h + cur_kh;
         int cur_w = pos_ori_w + cur_kw;
 
@@ -314,7 +310,7 @@ void launch_implgemm(param_t param) {
     int blockx = (param.Oh * param.Ow + 15) / 16 ;
     int blocky = (param.k + 15) / 16;
     int blockz = param.n;
-    int threadx = 256;
+    int threadx = 256;         
     int thready = 1;
     int threadz = 1;
 

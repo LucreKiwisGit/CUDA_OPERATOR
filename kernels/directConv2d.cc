@@ -31,3 +31,4 @@ void direct_conv2dCpu(param_t param) {
     } 
     }
 }
+
