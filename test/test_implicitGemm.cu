@@ -198,6 +198,7 @@ void implicit_gemm_fp16_test() {
         double gflops = flopsPerConv / (time_elapsed_ref.count() / 1000.0) / 1e9 ;
 
         // printf(" time: %ld ms\n", time_elapsed_ref.count());
+        printf("Cudnn Time per convolution: %ld ms\n", time_elapsed_ref.count()    );
         printf("Cudnn Performance :%f GFlops\n",  gflops);
         printf("================finish,error:%d=========================\n", error);
     
@@ -228,8 +229,8 @@ void implicit_gemm_fp16_test() {
         gflops = flopsPerConv / (timePerConv / 1000.0) / 1e9;
 
         printf("n: %2d, h: %2d, w: %2d, c: %2d, r: %d, s: %d, k: %2d\n", n, h, w, c, r, s, k);
-        printf("Time per convolution: %f ms\n", timePerConv);
-        printf("Performance: %f GFlops\n", gflops);
+        printf("MyImplGEMM Time per convolution: %f ms\n", timePerConv);
+        printf("MyImplGEMM Performance: %f GFlops\n", gflops);
 
     }
 }
