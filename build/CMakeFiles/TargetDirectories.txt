@@ -1,0 +1,3 @@
+/home/lucre/Project/Cuda_operator/build/CMakeFiles/cuda_operators_test.dir
+/home/lucre/Project/Cuda_operator/build/CMakeFiles/edit_cache.dir
+/home/lucre/Project/Cuda_operator/build/CMakeFiles/rebuild_cache.dir

@@ -12,7 +12,7 @@ using namespace nvcuda;
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
 #define MIN(a, b) ((a) >= (b) ? (b) : (a))
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
-
+ 
 const int WARP_SIZE = 32;
 const int WMMA_M = 16;
 const int WMMA_N = 16;
@@ -44,7 +44,10 @@ void cpu_conv(float *in, float *out, float *cpu_kernel, int IC, int IH, int IW, 
 }
 
 template <const int KH, const int KW, const int WARPS_PER_BLOCK>
-__global__ void implicit_gemm_conv(__half *input, __half *output, __half *kernel, const int N, const int IC, const int IH, const int IW, const int OC, const int OH, const int OW) {
+__global__ void implicit_gemm_conv(
+    __half *input, __half *output, __half *kernel, const int N,
+    const int IC, const int IH, const int IW, const int OC, const int OH, const int OW) {
+
     const int UNROLLED_KERNEL_SIZE = KH * KW;          // 每个卷积核单通道展开后的大小
     const int SLICE_SIZE = IC * UNROLLED_KERNEL_SIZE;  // 每个卷积核展开后的大小
 
