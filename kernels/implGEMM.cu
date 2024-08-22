@@ -2,6 +2,7 @@
 #include "convs2d.h"
 #include <stdio.h> 
 #include <cstdint>
+#include <cuda_fp16.h>
 
 __global__ void implgemm_kernel_1(param_t param) {
 
@@ -360,6 +361,7 @@ __global__ void implgemm_kernel_4(param_t param) {
         else {
             shm_weight[weight_sts_addr] = 0.0;
         }
+        shm_weight[weight_sts_addr] = param.weight[weight_offset + weight_offset_tmp];
 
         int cur_c = (crs + tx / 64) / weight_channel_size;
         int cur_ih = ((crs + tx / 64) % weight_channel_size) / param.kw;
@@ -568,7 +570,497 @@ __global__ void implgemm_kernel_4_v2(param_t param) {
 }
 
 
+/*
+    引入了更多的优化细节：
+        1. 通过padding，解决了shm_weight sts的bank冲突
+        2. 分离ldg 和 sts 指令，优化流水线，充分利用内存结构的优点
+        3. 重现排布warp内线程，使用z字排布，充分利用广播效果
+*/
+__global__ void implgemm_kernel_4_v3(param_t param) {
+    uint32_t tx = threadIdx.x;
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+
+    // warp tile, z字排布
+    const uint32_t warp_id = threadIdx.x / 32;
+    const uint32_t lane_id = threadIdx.x % 32;
+    const uint32_t mma_tid_x = (lane_id / 2) % 8;
+    const uint32_t mma_tid_y = (lane_id / 16) * 2 + (lane_id % 2);
+
+    // 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
+    uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
+    uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+
+    // share memory buffer, 每个线程需要负责加载 4 * 2 数据
+    __shared__ float shm_weight[8 * 132];    // 列主序 shm_weight[4][32][8]
+    __shared__ float shm_input[128 * 8];   // 行主序 shm_input[8][4][32]
+
+    uint32_t weight_sts_addr = (tx % 8) * 132 + (tx / 8) * 4 ;  // shm_weight[:4][tx / 8][tx % 8]
+    uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx / 32][：4][tx % 32]
+    
+    // 当前线程加载的数据点在输入矩阵 Oh 和 Ow 上的坐标, 注意和上面的矩阵的对应关系
+    int pos_ori_h[4];
+    int pos_ori_w[4];
+    # pragma unroll
+    for (int i = 0; i < 4; i++) {
+        pos_ori_h[i] = ((bx * 128 + tx % 32 + i * 32) / param.Ow) * param.stride_h - param.pad_h;
+        pos_ori_w[i] = ((bx * 128 + tx % 32 + i * 32) % param.Ow) * param.stride_w - param.pad_w;
+    }
+
+    // 计算对应加载数据所在矩阵的偏移
+    int z = blockIdx.z;
+    int input_offset = z * param.h * param.w * param.c;
+    int weight_offset = (by * 128 + tx / 8 * 4) * param.c * param.kh * param.kw;
+    int input_channel_size = param.h * param.w;
+    int weight_channel_size = param.kh * param.kw;
+    int kernel_size = param.c * weight_channel_size;
+
+
+    // 初始化 输出矩阵 , 中间矩阵
+    float weight_temp[8];
+    float input_temp[8];
+    float output_temp[8][8];
+    #pragma unroll
+    for (int i = 0; i < 8; i++) {
+    #pragma unroll
+        for (int j = 0; j < 8; j++) {
+            output_temp[i][j] = 0.0;
+        }
+    }
+
+    // 分离 ldg 和 sts
+    float weight_ldg_reg[4];
+    float input_ldg_reg[4];
+
+    for (int crs = 0; crs < kernel_size; crs += 8) {
+        // 加载数据 
+        // ldg stage
+        int weight_offset_tmp = crs + tx % 8;
+        #pragma unroll
+        for (int i = 0; i < 4; i++)
+        {
+            if ( weight_offset_tmp < kernel_size && by * 128 + tx / 8 * 4 + i < param.k ) {
+                weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size];
+            } 
+            else {
+                weight_ldg_reg[i] = 0.0;
+            }   
+            // weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size]; // 不清楚为什么不判断越界也可以
+        }
+
+        int cur_c = (crs + tx / 32) / weight_channel_size;
+        int cur_ih = ((crs + tx / 32) % weight_channel_size) / param.kw;
+        int cur_iw = ((crs + tx / 32) % weight_channel_size) % param.kw;
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            int cur_h = pos_ori_h[i] + cur_ih;
+            int cur_w = pos_ori_w[i] + cur_iw;
+            int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+            if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+                // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+                input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+            }
+            else {
+                input_ldg_reg[i] = 0.0;
+            }
+        }
+
+        // sts stage
+        for (int i = 0; i < 4; i++){
+            shm_input[input_sts_addr + i * 32] = input_ldg_reg[i];
+            shm_weight[weight_sts_addr + i] = weight_ldg_reg[i];
+        }
+        
+        __syncthreads();
+
+        // 计算数据
+        // 读取share memory到reg
+        #pragma unroll
+        for (int subcrs = 0; subcrs < 8; subcrs++) {
+            #pragma unroll
+            for (int i = 0; i < 4; i++)
+            {
+                weight_temp[i] = shm_weight[weight_lds_addr + subcrs * 132 + i];
+                weight_temp[i + 4] = shm_weight[weight_lds_addr + subcrs * 132 + i + 16];
+            }
+            #pragma unroll
+            for (int i = 0; i < 4;i++)
+            {
+                input_temp[i] = shm_input[input_lds_addr + subcrs * 128 + i];
+                input_temp[i + 4] = shm_input[input_lds_addr + subcrs * 128 + i + 32];
+            }
+
+            // 转换为外积
+            #pragma unroll
+            for (int i = 0; i < 8; i++) {
+                #pragma unroll
+                for (int j = 0; j < 8; j++) {
+                    if (i == 0 && j == 0     && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
+                        printf("step %d : %f += %f * %f\n",subcrs + crs, output_temp[i][j], input_temp[j] , weight_temp[i]);
+                    }
+                    output_temp[i][j] += weight_temp[i] * input_temp[j];
+
+                }
+            }
+        }
+
+        __syncthreads();
+    }
+
+
+    // 计算输出偏移
+    int output_offset;
+    int y = weight_lds_addr + by * 128;
+    int x = input_lds_addr + bx * 128;
+    #pragma unroll
+    for (int i = 0; i < 4; i++)
+    {
+        #pragma unroll
+        for (int j = 0; j < 4; j++)
+        {
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i) * param.Oh * param.Ow + x + j;
+            if ((x + j) < param.Ow * param.Oh && (y + i) < param.k)
+            {
+                if (param.output[output_offset] != output_temp[i][j])
+                {
+                    i = i;
+                }
+                param.output[output_offset] = output_temp[i][j];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i) * param.Oh * param.Ow + x + j + 32;
+            if ((x + j + 32) < param.Ow * param.Oh && (y + i) < param.k)
+            {
+                param.output[output_offset] = output_temp[i][j + 4];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i + 16) * param.Oh * param.Ow + x + j;
+            if ((x + j) < param.Ow * param.Oh && (y + i + 16) < param.k)
+            {
+                param.output[output_offset] = output_temp[i + 4][j];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i + 16) * param.Oh * param.Ow + x + j + 32;
+            if ((x + j + 32) < param.Ow * param.Oh && (y + i + 16) < param.k)
+            {
+                param.output[output_offset] = output_temp[i + 4][j + 4];
+            }
+        }
+    }
+
+}
+
+/* 
+    使用 DoubleBuffering 来掩盖访存延迟
+*/
 __global__ void implgemm_kernel_5(param_t param) {
+    uint32_t tx = threadIdx.x;
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+
+    // warp tile, z字排布
+    const uint32_t warp_id = threadIdx.x / 32;
+    const uint32_t lane_id = threadIdx.x % 32;
+    const uint32_t mma_tid_x = (lane_id / 2) % 8;
+    const uint32_t mma_tid_y = (lane_id / 16) * 2 + (lane_id % 2);
+
+    // 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
+    uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
+    uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+
+    // share memory buffer, 每个线程需要负责加载 4 * 2 数据
+    __shared__ float shm_weight[2][8 * 128];    // 列主序 shm_weight[4][32][8]
+    __shared__ float shm_input[2][132 * 8];   // 行主序 shm_input[8][4][32]
+
+    uint32_t weight_sts_addr = (tx % 8) * 132 + (tx / 8) * 4 ;  // shm_weight[:4][tx / 8][tx % 8]
+    uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx / 32][：4][tx % 32]
+    
+    // 当前线程加载的数据点在输入矩阵 Oh 和 Ow 上的坐标, 注意和上面的矩阵的对应关系
+    int pos_ori_h[4];
+    int pos_ori_w[4];
+    # pragma unroll
+    for (int i = 0; i < 4; i++) {
+        pos_ori_h[i] = ((bx * 128 + tx % 32 + i * 32) / param.Ow) * param.stride_h - param.pad_h;
+        pos_ori_w[i] = ((bx * 128 + tx % 32 + i * 32) % param.Ow) * param.stride_w - param.pad_w;
+    }
+
+    // 计算对应加载数据所在矩阵的偏移
+    int z = blockIdx.z;
+    int input_offset = z * param.h * param.w * param.c;
+    int weight_offset = (by * 128 + tx / 8 * 4) * param.c * param.kh * param.kw;
+    int input_channel_size = param.h * param.w;
+    int weight_channel_size = param.kh * param.kw;
+    int kernel_size = param.c * weight_channel_size;
+
+
+    // 初始化 输出矩阵 , 中间矩阵
+    int write_flag = 1;
+    // float weight_temp[2][8];
+    // float input_temp[2][8];
+    // float output_temp[8][8];
+    float weight_temp[8];
+    float input_temp[8];
+    float output_temp[8][8];
+    #pragma unroll
+    for (int i = 0; i < 8; i++) {
+    #pragma unroll
+        for (int j = 0; j < 8; j++) {
+            output_temp[i][j] = 0.0;
+        }
+    }
+
+    // 分离 ldg 和 sts
+    float weight_ldg_reg[4];
+    float input_ldg_reg[4];
+
+    /*
+        先预加载一个数据 
+    */
+   // 加载数据 
+    // ldg stage
+    int crs = 0;
+    int weight_offset_tmp = crs + tx % 8;
+    #pragma unroll
+    for (int i = 0; i < 4; i++)
+    {
+        if ( weight_offset_tmp < kernel_size && by * 128 + tx / 8 * 4 + i < param.k ) {
+            weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size];
+        } 
+        else {
+            weight_ldg_reg[i] = 0.0;
+        }   
+        // weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size]; // 不清楚为什么不判断越界也可以
+    }
+
+    int cur_c = (crs + tx / 32) / weight_channel_size;
+    int cur_ih = ((crs + tx / 32) % weight_channel_size) / param.kw;
+    int cur_iw = ((crs + tx / 32) % weight_channel_size) % param.kw;
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        int cur_h = pos_ori_h[i] + cur_ih;
+        int cur_w = pos_ori_w[i] + cur_iw;
+        int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+        if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+            // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+            input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+        }
+        else {
+            input_ldg_reg[i] = 0.0;
+        }
+    }
+
+    // sts
+    for (int i = 0; i < 4; i++){
+        shm_input[0][input_sts_addr + i * 32] = input_ldg_reg[i];
+        shm_weight[0][weight_sts_addr + i] = weight_ldg_reg[i];
+    }
+    __syncthreads();
+
+    // //lds stage , for subcrs = 0
+    // #pragma unroll
+    // for (int i = 0; i < 4; i++) {
+    //     input_temp[0][i] = shm_input[0][input_lds_addr + i];
+    //     input_temp[0][i + 4] = shm_input[0][input_lds_addr + i + 32];
+    // }
+    // #pragma unroll
+    // for (int i = 0; i < 4; i++) {
+    //     weight_temp[0][i] = shm_weight[0][weight_lds_addr + i];
+    //     weight_temp[0][i + 4] = shm_weight[0][weight_lds_addr + i + 16];
+    // }
+    
+    // 主循环，注意每个循环内 负责一个 CRS tile 的计算，以及下一个循环需要的数据ldf + sts + (下个循环第一个lds使用的)
+    // 
+    // main loop
+    for (crs = 0; crs < kernel_size; crs += 8) {
+        // 加载数据 
+        // ldg stage
+        int weight_offset_tmp = crs + 8 + tx % 8;
+        #pragma unroll
+        for (int i = 0; i < 4; i++)
+        {
+            if ( weight_offset_tmp < kernel_size && by * 128 + tx / 8 * 4 + i < param.k ) {
+                weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size];
+            } 
+            else {
+                weight_ldg_reg[i] = 0.0;
+            }   
+            // weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size]; // 不清楚为什么不判断越界也可以
+        }
+
+        int cur_c = (crs + 8 + tx / 32) / weight_channel_size;
+        int cur_ih = ((crs + 8 + tx / 32) % weight_channel_size) / param.kw;
+        int cur_iw = ((crs + 8 + tx / 32) % weight_channel_size) % param.kw;
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            int cur_h = pos_ori_h[i] + cur_ih;
+            int cur_w = pos_ori_w[i] + cur_iw;
+            int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+            if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+                // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+                input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+            }
+            else {
+                input_ldg_reg[i] = 0.0;
+            }
+        }
+        
+        /*
+            lds + compute
+            注意，这里其实之前已经提前lds一个数据.
+            这里lds部分也做了DoubleBuffering，不仅仅是 ldg 和 sts 部分。
+            但是，这里的代码显然会出现数据覆盖的问题，导致数据计算错误。
+            ！！！！ 只能弃用这部分的double buffering ，必然存在一定的数据覆盖问题。
+        */
+        // int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
+        // #pragma unroll
+        // for (int subcrs = 0; subcrs < 8 - 1; subcrs++) {
+        //     // lds下个循环使用的数据
+        //     #pragma unroll
+        //     for (int i = 0; i < 4; i++) {
+        //         weight_temp[(subcrs + 1) % 2][i] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i]; 
+        //         weight_temp[(subcrs + 1) % 2][i + 4] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i + 16]; 
+        //     }
+
+        //     #pragma unroll
+        //     for (int i = 0; i < 4; i++) {
+        //         input_temp[(subcrs + 1) % 2][i] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i]; 
+        //         input_temp[(subcrs + 1) % 2][i + 4] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i + 32];
+        //     }
+
+        //     // compute
+        //     #pragma unroll
+        //     for (int i = 0; i < 8; i++) {
+        //         #pragma unroll
+        //         for (int j = 0; j < 8; j++) {
+        //             // if (i == 0 && j == 0 && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
+        //             //     printf("step %d : %f += %f * %f\n",subcrs + crs, output_temp[i][j], input_temp[subcrs % 2][j] , weight_temp[subcrs % 2][i]);
+        //             // }
+        //             output_temp[i][j] += input_temp[subcrs % 2][j] * weight_temp[subcrs % 2][i];
+        //         }
+        //     }
+        // }
+
+        int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
+        #pragma unroll
+        for (int subcrs = 0; subcrs < 8; subcrs++) {
+            // lds下个循环使用的数据
+            #pragma unroll
+            for (int i = 0; i < 4; i++) {
+                weight_temp[i] = shm_weight[load_flag][weight_lds_addr + subcrs * 132 + i]; 
+                weight_temp[i + 4] = shm_weight[load_flag][weight_lds_addr + subcrs * 132 + i + 16]; 
+            }
+
+            #pragma unroll
+            for (int i = 0; i < 4; i++) {
+                input_temp[i] = shm_input[load_flag][input_lds_addr + subcrs * 128 + i]; 
+                input_temp[i + 4] = shm_input[load_flag][input_lds_addr + subcrs * 128 + i + 32];
+            }
+
+            // compute
+            #pragma unroll
+            for (int i = 0; i < 8; i++) {
+                #pragma unroll
+                for (int j = 0; j < 8; j++) {
+                    // if (i == 0 && j == 0 && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
+                    //     printf("step %d : %f += %f * %f\n",subcrs + crs, output_temp[i][j], input_temp[subcrs % 2][j] , weight_temp[subcrs % 2][i]);
+                    // }
+                    output_temp[i][j] += input_temp[j] * weight_temp[i];
+                }
+            }
+        }
+
+        /*
+            上面其实还有一个循环没有计算，这里在前面塞了一个sts阶段掩藏延迟，和main loop外的sts一样的，为下一个 lds + compute 
+            第一个循环计算预加载数据。
+        */
+        for (int i = 0; i < 4; i++)
+        {
+            shm_weight[write_flag][weight_sts_addr + i] = weight_ldg_reg[i];
+            shm_input[write_flag][input_sts_addr + i * 32] = input_ldg_reg[i];
+        }
+
+        __syncthreads();  // 必须等待数据加载完成，不然lds会出错
+
+        write_flag = write_flag ^ 1;
+
+        // lds下个循环使用的数据
+        // #pragma unroll
+        // for (int i = 0; i < 4; i++) {
+        //     weight_temp[0][i] = shm_weight[load_flag ^ 1][weight_lds_addr + i]; 
+        //     weight_temp[0][i + 4] = shm_weight[load_flag ^ 1][weight_lds_addr + i + 16]; 
+        // }
+
+        // #pragma unroll
+        // for (int i = 0; i < 4; i++) {
+        //     input_temp[0][i] = shm_input[load_flag ^ 1][input_lds_addr + i]; 
+        //     input_temp[0][i + 4] = shm_input[load_flag ^ 1][input_lds_addr + i + 32];
+        // }
+
+        /*
+            好啦，终于可以把 当前循环最后一个subcrs的数据计算完了.
+            subcrs = 7
+        */
+        // #pragma unroll
+        // for (int i = 0; i < 8; i++) {
+        //     #pragma unroll
+        //     for (int j = 0; j < 8; j++) {
+        //         // if (i == 0 && j == 0 && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
+        //         //     printf("step %d : %.9f += %.9f * %.9f\n",7 + crs, output_temp[i][j], input_temp[1][j] , weight_temp[1][i]);
+        //         // }
+        //         output_temp[i][j] += input_temp[1][j] * weight_temp[1][i];
+        //     }
+        // }
+    }
+
+
+    // 计算输出偏移
+    int output_offset;
+    int y = weight_lds_addr + by * 128;
+    int x = input_lds_addr + bx * 128;
+    #pragma unroll
+    for (int i = 0; i < 4; i++)
+    {
+        #pragma unroll
+        for (int j = 0; j < 4; j++)
+        {
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i) * param.Oh * param.Ow + x + j;
+            if ((x + j) < param.Ow * param.Oh && (y + i) < param.k)
+            {
+                // if (param.output[output_offset] != output_temp[i][j]){
+                //     printf("output_temp[%d][%d] = %f, param.output[%d] = %f\n", i, j, output_temp[i][j], output_offset, param.output[output_offset]);
+                // }
+                param.output[output_offset] = output_temp[i][j];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i) * param.Oh * param.Ow + x + j + 32;
+            if ((x + j + 32) < param.Ow * param.Oh && (y + i) < param.k)
+            {
+                // if (param.output[output_offset] != output_temp[i][j + 4]){
+                //     printf("output_temp[%d][%d] = %f, param.output[%d] = %f\n", i, j, output_temp[i][j + 4], output_offset, param.output[output_offset]);
+                // }
+                param.output[output_offset] = output_temp[i][j + 4];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i + 16) * param.Oh * param.Ow + x + j;
+            if ((x + j) < param.Ow * param.Oh && (y + i + 16) < param.k)
+            {
+                param.output[output_offset] = output_temp[i + 4][j];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i + 16) * param.Oh * param.Ow + x + j + 32;
+            if ((x + j + 32) < param.Ow * param.Oh && (y + i + 16) < param.k)
+            {
+                param.output[output_offset] = output_temp[i + 4][j + 4];
+            }
+        }
+    }
+
+}
+
+__global__ void implgemm_fp16_kernel_4_v2(param_t param) {
     uint32_t tx = threadIdx.x;
     int bx = blockIdx.x;
     int by = blockIdx.y;
@@ -584,8 +1076,8 @@ __global__ void implgemm_kernel_5(param_t param) {
     uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
 
     // share memory buffer, 每个线程需要负责加载 4 * 2 数据
-    __shared__ float shm_weight[8 * 128];    // 列主序 shm_weight[4][32][8]
-    __shared__ float shm_input[128 * 8];   // 行主序 shm_input[8][4][32]
+    __shared__ __half shm_weight[8 * 128];    // 列主序 shm_weight[4][32][8]
+    __shared__ __half shm_input[128 * 8];   // 行主序 shm_input[8][4][32]
 
     uint32_t weight_sts_addr = (tx % 8) * 128 + (tx / 8) * 4 ;  // shm_weight[:4][tx / 8][tx % 8]
     uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx / 32][：4][tx % 32]
@@ -609,7 +1101,7 @@ __global__ void implgemm_kernel_5(param_t param) {
 
 
     // 初始化 输出矩阵 
-    float output_temp[8][8];
+    __half output_temp[8][8];
     #pragma unroll
     for (int i = 0; i < 8; i++) {
     #pragma unroll
@@ -661,10 +1153,14 @@ __global__ void implgemm_kernel_5(param_t param) {
                 #pragma unroll
                 for (int j = 0; j < 4; j++)
                 {
-                    output_temp[i][j] += shm_input[input_lds_addr + subcrs * 128 + j] *shm_weight[weight_lds_addr + subcrs * 128 + i];
-                    output_temp[i][j + 4] += shm_input[input_lds_addr + subcrs * 128 + j + 32] *shm_weight[weight_lds_addr + subcrs * 128 + i];
-                    output_temp[i + 4][j] += shm_input[input_lds_addr + subcrs * 128 + j] *shm_weight[weight_lds_addr + subcrs * 128 + i + 16];
-                    output_temp[i + 4][j + 4] += shm_input[input_lds_addr + subcrs * 128 + j + 32] *shm_weight[weight_lds_addr + subcrs * 128 + i + 16];
+                    // output_temp[i][j] += __half2float(shm_input[input_lds_addr + subcrs * 128 + j] * shm_weight[weight_lds_addr + subcrs * 128 + i]);
+                    // output_temp[i][j + 4] += __half2float(shm_input[input_lds_addr + subcrs * 128 + j + 32] * shm_weight[weight_lds_addr + subcrs * 128 + i]);
+                    // output_temp[i + 4][j] += __half2float(shm_input[input_lds_addr + subcrs * 128 + j] * shm_weight[weight_lds_addr + subcrs * 128 + i + 16]);
+                    // output_temp[i + 4][j + 4] += __half2float(shm_input[input_lds_addr + subcrs * 128 + j + 32] * shm_weight[weight_lds_addr + subcrs * 128 + i + 16]);
+                    output_temp[i][j] += shm_input[input_lds_addr + subcrs * 128 + j] * shm_weight[weight_lds_addr + subcrs * 128 + i];
+                    output_temp[i][j + 4] += shm_input[input_lds_addr + subcrs * 128 + j + 32] * shm_weight[weight_lds_addr + subcrs * 128 + i];
+                    output_temp[i + 4][j] += shm_input[input_lds_addr + subcrs * 128 + j] * shm_weight[weight_lds_addr + subcrs * 128 + i + 16];
+                    output_temp[i + 4][j + 4] += shm_input[input_lds_addr + subcrs * 128 + j + 32] * shm_weight[weight_lds_addr + subcrs * 128 + i + 16];
                 }
             }
         }
@@ -708,7 +1204,273 @@ __global__ void implgemm_kernel_5(param_t param) {
             }
         }
     }
+
 }
+
+
+/*
+    使用 DoubleBuffering 来掩盖访存延迟
+*/
+__global__ void implgemm_fp16_kernel_5(param_t param) {
+    uint32_t tx = threadIdx.x;
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+
+    // warp tile, z字排布
+    const uint32_t warp_id = threadIdx.x / 32;
+    const uint32_t lane_id = threadIdx.x % 32;
+    const uint32_t mma_tid_x = (lane_id / 2) % 8;
+    const uint32_t mma_tid_y = (lane_id / 16) % 2 + (lane_id % 2);
+
+    // 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
+    uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
+    uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+
+    // share memory buffer, 每个线程需要负责加载 4 * 2 数据
+    __shared__ __half shm_weight[2][8 * 128];    // 列主序 shm_weight[4][32][8]
+    __shared__ __half shm_input[2][132 * 8];   // 行主序 shm_input[8][4][32]
+
+    uint32_t weight_sts_addr = (tx % 8) * 132 + (tx / 8) * 4 ;  // shm_weight[:4][tx / 8][tx % 8]
+    uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx / 32][：4][tx % 32]
+    
+    // 当前线程加载的数据点在输入矩阵 Oh 和 Ow 上的坐标, 注意和上面的矩阵的对应关系
+    int pos_ori_h[4];
+    int pos_ori_w[4];
+    # pragma unroll
+    for (int i = 0; i < 4; i++) {
+        pos_ori_h[i] = ((bx * 128 + tx % 32 + i * 32) / param.Ow) * param.stride_h - param.pad_h;
+        pos_ori_w[i] = ((bx * 128 + tx % 32 + i * 32) % param.Ow) * param.stride_w - param.pad_w;
+    }
+
+    // 计算对应加载数据所在矩阵的偏移
+    int z = blockIdx.z;
+    int input_offset = z * param.h * param.w * param.c;
+    int weight_offset = (by * 128 + tx / 8 * 4) * param.c * param.kh * param.kw;
+    int input_channel_size = param.h * param.w;
+    int weight_channel_size = param.kh * param.kw;
+    int kernel_size = param.c * weight_channel_size;
+
+
+    // 初始化 输出矩阵 , 中间矩阵
+    int write_flag = 1;
+    __half weight_temp[2][8];
+    __half input_temp[2][8];
+    float output_temp[8][8];
+    #pragma unroll
+    for (int i = 0; i < 8; i++) {
+    #pragma unroll
+        for (int j = 0; j < 8; j++) {
+            output_temp[i][j] = 0.0;
+        }
+    }
+
+    // 分离 ldg 和 sts
+    __half weight_ldg_reg[4];
+    __half input_ldg_reg[4];
+
+    /*
+        先预加载一个数据 
+    */
+   // 加载数据 
+    // ldg stage
+    int crs = 0;
+    int weight_offset_tmp = crs + tx % 8;
+    #pragma unroll
+    for (int i = 0; i < 4; i++)
+    {
+        if ( weight_offset_tmp < kernel_size && by * 128 + tx / 8 * 4 + i < param.k ) {
+            weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size];
+        } 
+        else {
+            weight_ldg_reg[i] = 0.0;
+        }   
+        // weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size]; // 不清楚为什么不判断越界也可以
+    }
+
+    int cur_c = (crs + tx / 32) / weight_channel_size;
+    int cur_ih = ((crs + tx / 32) % weight_channel_size) / param.kw;
+    int cur_iw = ((crs + tx / 32) % weight_channel_size) % param.kw;
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        int cur_h = pos_ori_h[i] + cur_ih;
+        int cur_w = pos_ori_w[i] + cur_iw;
+        int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+        if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+            // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+            input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+        }
+        else {
+            input_ldg_reg[i] = 0.0;
+        }
+    }
+
+    // sts
+    for (int i = 0; i < 4; i++){
+        shm_input[0][input_sts_addr + i * 32] = input_ldg_reg[i];
+        shm_weight[0][weight_sts_addr + i] = weight_ldg_reg[i];
+    }
+    __syncthreads();
+
+    //lds stage , for subcrs = 0
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        input_temp[0][i] = shm_input[0][input_lds_addr + i];
+        input_temp[0][i + 4] = shm_input[0][input_lds_addr + i + 16];
+    }
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        weight_temp[0][i] = shm_weight[0][weight_lds_addr + i];
+        weight_temp[0][i + 4] = shm_weight[0][weight_lds_addr + i + 32];
+    }
+    
+    // 主循环，注意每个循环内 负责一个 CRS tile 的计算，以及下一个循环需要的数据ldf + sts + (下个循环第一个lds使用的)
+    // 
+    // main loop
+    for (crs = 0; crs < kernel_size; crs += 8) {
+        // 加载数据 
+        // ldg stage
+        int weight_offset_tmp = crs + tx % 8;
+        #pragma unroll
+        for (int i = 0; i < 4; i++)
+        {
+            if ( weight_offset_tmp < kernel_size && by * 128 + tx / 8 * 4 + i < param.k ) {
+                weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size];
+            } 
+            else {
+                weight_ldg_reg[i] = 0.0;
+            }   
+            // weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size]; // 不清楚为什么不判断越界也可以
+        }
+
+        int cur_c = (crs + tx / 32) / weight_channel_size;
+        int cur_ih = ((crs + tx / 32) % weight_channel_size) / param.kw;
+        int cur_iw = ((crs + tx / 32) % weight_channel_size) % param.kw;
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            int cur_h = pos_ori_h[i] + cur_ih;
+            int cur_w = pos_ori_w[i] + cur_iw;
+            int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+            if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+                // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+                input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+            }
+            else {
+                input_ldg_reg[i] = 0.0;
+            }
+        }
+        
+        /*
+            lds + compute
+            注意，这里其实之前已经提前lds一个数据.
+            这里lds部分也做了DoubleBuffering，不仅仅是 ldg 和 sts 部分。
+        */
+        int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
+        #pragma unroll
+        for (int subcrs = 0; subcrs < 8 - 1; subcrs++) {
+            // lds下个循环使用的数据
+            #pragma unroll
+            for (int i = 0; i < 4; i++) {
+                weight_temp[(subcrs + 1) % 2][i] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i]; 
+                weight_temp[(subcrs + 1) % 2][i + 4] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i + 16]; 
+            }
+
+            #pragma unroll
+            for (int i = 0; i < 4; i++) {
+                input_temp[(subcrs + 1) % 2][i] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i]; 
+                input_temp[(subcrs + 1) % 2][i + 4] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i + 32];
+            }
+
+            // compute
+            #pragma unroll
+            for (int i = 0; i < 8; i++) {
+                #pragma unroll
+                for (int j = 0; j < 8; j++) {
+                    output_temp[i][j] += __half2float(input_temp[subcrs % 2][i] * weight_temp[subcrs % 2][j]);
+                }
+            }
+        }
+
+        /*
+            上面其实还有一个循环没有计算，这里在前面塞了一个sts阶段掩藏延迟，和main loop外的sts一样的，为下一个 lds + compute 
+            第一个循环计算预加载数据。
+        */
+        for (int i = 0; i < 4; i++)
+        {
+            shm_weight[write_flag][weight_sts_addr + i] = weight_ldg_reg[i];
+            shm_input[write_flag][input_sts_addr + i * 32] = input_ldg_reg[i];
+        }
+
+        __syncthreads();  // 必须等待数据加载完成，不然lds会出错
+
+        write_flag = write_flag ^ 1;
+
+        // lds下个循环使用的数据
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            weight_temp[0][i] = shm_weight[load_flag][weight_lds_addr + i]; 
+            weight_temp[0][i + 4] = shm_weight[load_flag][weight_lds_addr + i + 16]; 
+        }
+
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            input_temp[0][i] = shm_input[load_flag][input_lds_addr + i]; 
+            input_temp[0][i + 4] = shm_input[load_flag][input_lds_addr + i + 32];
+        }
+
+        /*
+            好啦，终于可以把 当前循环最后一个subcrs的数据计算完了.
+            subcrs = 7
+        */
+        #pragma unroll
+        for (int i = 0; i < 8; i++) {
+            #pragma unroll
+            for (int j = 0; j < 8; j++) {
+                output_temp[i][j] += __half2float(input_temp[1][i] * weight_temp[1][j]);
+            }
+        }
+    }
+
+
+    // 计算输出偏移
+    int output_offset;
+    int y = weight_lds_addr + by * 128;
+    int x = input_lds_addr + bx * 128;
+    #pragma unroll
+    for (int i = 0; i < 4; i++)
+    {
+        #pragma unroll
+        for (int j = 0; j < 4; j++)
+        {
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i) * param.Oh * param.Ow + x + j;
+            if ((x + j) < param.Ow * param.Oh && (y + i) < param.k)
+            {
+                param.output[output_offset] = output_temp[i][j];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i) * param.Oh * param.Ow + x + j + 32;
+            if ((x + j + 32) < param.Ow * param.Oh && (y + i) < param.k)
+            {
+                param.output[output_offset] = output_temp[i][j + 4];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i + 16) * param.Oh * param.Ow + x + j;
+            if ((x + j) < param.Ow * param.Oh && (y + i + 16) < param.k)
+            {
+                param.output[output_offset] = output_temp[i + 4][j];
+            }
+
+            output_offset = z * param.Oh * param.Ow * param.k + (y + i + 16) * param.Oh * param.Ow + x + j + 32;
+            if ((x + j + 32) < param.Ow * param.Oh && (y + i + 16) < param.k)
+            {
+                param.output[output_offset] = output_temp[i + 4][j + 4];
+            }
+        }
+    }
+
+}
+
 
 void launch_implgemm(param_t param) {
 
@@ -724,7 +1486,7 @@ void launch_implgemm(param_t param) {
 
     dim3 block(threadx, thready, threadz);
     dim3 grid(blockx, blocky, blockz);
-    implgemm_kernel_4_v2<<<grid, block>>>(param);
+    implgemm_kernel_5<<<grid, block>>>(param);
 
     cudaError_t cuda_err = cudaGetLastError();
     if (cuda_err != cudaSuccess) {
@@ -732,3 +1494,5 @@ void launch_implgemm(param_t param) {
     }
 
 }
+
+

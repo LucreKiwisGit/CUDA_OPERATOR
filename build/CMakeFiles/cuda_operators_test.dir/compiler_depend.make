@@ -616,7 +616,12 @@ CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o: ../kernels/implGEMM.cu
   /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h \
   /usr/include/stdint.h \
   /usr/include/x86_64-linux-gnu/bits/wchar.h \
-  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h
+  /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
+  /usr/local/cuda/include/cuda_fp16.h \
+  /usr/local/cuda/include/nv/target \
+  /usr/local/cuda/include/nv/detail/__target_macros \
+  /usr/local/cuda/include/nv/detail/__preprocessor \
+  /usr/local/cuda/include/cuda_fp16.hpp
 
 CMakeFiles/cuda_operators_test.dir/main.cu.o: ../main.cu \
   /usr/include/stdc-predef.h \

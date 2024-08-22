@@ -18,7 +18,10 @@ struct CudaDeleter {
 
 void implicit_gemm_fp16_test() {
 
-    int caseSize = 6;
+    // 设置随机种子
+    srand(0);
+
+    int caseSize = 7;
 
     int N[caseSize] = {1, 64, 256, 16, 32, 2, 2};
     int C[caseSize] = {3, 256, 192, 256, 256, 1280, 960};
@@ -32,7 +35,7 @@ void implicit_gemm_fp16_test() {
     int U[caseSize] = {1, 1,    1,    1,    1,   1,   1};
     int V[caseSize] = {1, 1,    1,    1,    1,   1,   1};
 
-    for (int i = 0; i < caseSize; i++) {
+    for (int i = 0; i < 7; i++) {
         int n = N[i];
         int c = C[i];
         int h = H[i];
@@ -159,8 +162,8 @@ void implicit_gemm_fp16_test() {
         param.Oh = OH;
         param.Ow = OW;
 
-        printf("================Beigin=========================\n");
-        printf("%2d %2d %2d %2d %d %d %2d\n", n, h, w, c, r, s, k);
+        printf("\n========================Begin=============================\n");
+        printf("n = %2d h = %2d w = %2d c = %2d r = %d s = %d k = %2d\n", n, h, w, c, r, s, k);
 
         
         // warm up
@@ -169,7 +172,7 @@ void implicit_gemm_fp16_test() {
 
         cudaMemcpy(output.get(), output_device.get(), n * k * OH * OW * sizeof(float), cudaMemcpyDeviceToHost);
 
-        // 验证正确率
+        // 验证正确率, 使用cudnn
         
         auto start_ref = std::chrono::steady_clock::now();
         omp_set_num_threads(8);
@@ -191,16 +194,19 @@ void implicit_gemm_fp16_test() {
             }
         }
 
-        launch_implgemm(param);
+        // launch_implgemm(param);
+        // cudaMemcpy(output.get(), output_device.get(), n * k * OH * OW * sizeof(float), cudaMemcpyDeviceToHost);
+
 
         
         auto time_elapsed_ref = std::chrono::duration_cast<std::chrono::milliseconds>(end_ref - start_ref);
         double gflops = flopsPerConv / (time_elapsed_ref.count() / 1000.0) / 1e9 ;
 
         // printf(" time: %ld ms\n", time_elapsed_ref.count());
+        printf("Verify finish,error:%d\n", error);
         printf("Cudnn Time per convolution: %ld ms\n", time_elapsed_ref.count()    );
         printf("Cudnn Performance :%f GFlops\n",  gflops);
-        printf("================finish,error:%d=========================\n", error);
+        
     
         
 
@@ -228,9 +234,11 @@ void implicit_gemm_fp16_test() {
         float timePerConv = time_elapsed / iternum;
         gflops = flopsPerConv / (timePerConv / 1000.0) / 1e9;
 
-        printf("n: %2d, h: %2d, w: %2d, c: %2d, r: %d, s: %d, k: %2d\n", n, h, w, c, r, s, k);
+        // printf("n: %2d, h: %2d, w: %2d, c: %2d, r: %d, s: %d, k: %2d\n", n, h, w, c, r, s, k);
         printf("MyImplGEMM Time per convolution: %f ms\n", timePerConv);
         printf("MyImplGEMM Performance: %f GFlops\n", gflops);
+
+        
 
     }
 }

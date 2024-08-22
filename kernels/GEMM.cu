@@ -598,6 +598,8 @@ __global__ void mySgemmV3Aligned(
     }
 }
 
+
+
 void launch_implgemm(param_gemm param) {
     /*
         感觉不是很必要重新写一个测试的接口，先用着 test_GEMM.cu 的 gemm_fp32_test();
