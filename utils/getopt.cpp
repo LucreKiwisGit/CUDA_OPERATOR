@@ -41,6 +41,9 @@ bool SampleTest::init_args(int argc, char** argv) {
                 } else if (strcmp(optarg, "ImplicitGEMM") == 0) {
                     args.op_name = ImplicitGEMM;
                 }
+                else if (strcmp(optarg, "Im2colGEMM") == 0) {
+                    args.op_name = Im2colGEMM;
+                }
                 else {
                     printHelpInfo();
                     return false;
@@ -82,6 +85,10 @@ void SampleTest::run_test()
     else if (args.op_name == Operator::ImplicitGEMM) {
         std::cout << "Executing Implicit GEMM test with data type: " << args.op_type << "\n";
         implicit_gemm_fp16_test();
+    }
+    else if (args.op_name == Operator::Im2colGEMM) {
+        std::cout << "Executing Im2col GEMM test with data type: " << args.op_type << "\n";
+        im2col_gemm_fp16_test();
     }
     else {
         std::cout << "Unsupported operator type: " << args.op_name << "\n";

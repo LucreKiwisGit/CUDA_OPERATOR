@@ -1,4 +1,4 @@
-CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator/main.cu \
+CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o : /home/lucre/Project/Cuda_operator/kernels/im2colGEMM.cu \
     /usr/include/stdc-predef.h \
     /usr/local/cuda/include/cuda_runtime.h \
     /usr/local/cuda/include/crt/host_config.h \
@@ -153,35 +153,16 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/c++/11/bits/move.h \
     /usr/include/c++/11/type_traits \
     /usr/include/c++/11/initializer_list \
-    /home/lucre/Project/Cuda_operator/include/convs2d.h \
     /usr/local/cuda/include/cuda_fp16.h \
     /usr/local/cuda/include/nv/target \
     /usr/local/cuda/include/nv/detail/__target_macros \
     /usr/local/cuda/include/nv/detail/__preprocessor \
     /usr/local/cuda/include/cuda_fp16.hpp \
-    /home/lucre/Project/Cuda_operator/include/utils.h \
-    /usr/include/c++/11/iostream \
-    /usr/include/c++/11/ostream \
-    /usr/include/c++/11/ios \
-    /usr/include/c++/11/iosfwd \
-    /usr/include/c++/11/bits/stringfwd.h \
-    /usr/include/c++/11/bits/memoryfwd.h \
-    /usr/include/c++/11/bits/postypes.h \
-    /usr/include/c++/11/cwchar \
-    /usr/include/wchar.h \
-    /usr/include/x86_64-linux-gnu/bits/wchar.h \
-    /usr/include/x86_64-linux-gnu/bits/types/wint_t.h \
-    /usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h \
-    /usr/include/c++/11/exception \
-    /usr/include/c++/11/bits/exception_ptr.h \
-    /usr/include/c++/11/bits/exception_defines.h \
-    /usr/include/c++/11/bits/cxxabi_init_exception.h \
-    /usr/include/c++/11/typeinfo \
-    /usr/include/c++/11/bits/hash_bytes.h \
-    /usr/include/c++/11/bits/nested_exception.h \
-    /usr/include/c++/11/bits/char_traits.h \
+    /home/lucre/Project/Cuda_operator/include/convs2d.h \
+    /usr/include/c++/11/memory \
     /usr/include/c++/11/bits/stl_algobase.h \
     /usr/include/c++/11/bits/functexcept.h \
+    /usr/include/c++/11/bits/exception_defines.h \
     /usr/include/c++/11/ext/numeric_traits.h \
     /usr/include/c++/11/bits/stl_iterator_base_types.h \
     /usr/include/c++/11/bits/stl_iterator_base_funcs.h \
@@ -191,17 +172,45 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/c++/11/bits/ptr_traits.h \
     /usr/include/c++/11/debug/debug.h \
     /usr/include/c++/11/bits/predefined_ops.h \
-    /usr/include/c++/11/cstdint \
+    /usr/include/c++/11/bits/allocator.h \
+    /usr/include/x86_64-linux-gnu/c++/11/bits/c++allocator.h \
+    /usr/include/c++/11/ext/new_allocator.h \
+    /usr/include/c++/11/bits/memoryfwd.h \
+    /usr/include/c++/11/bits/stl_construct.h \
+    /usr/include/c++/11/bits/stl_uninitialized.h \
+    /usr/include/c++/11/ext/alloc_traits.h \
+    /usr/include/c++/11/bits/alloc_traits.h \
+    /usr/include/c++/11/bits/stl_tempbuf.h \
+    /usr/include/c++/11/bits/stl_raw_storage_iter.h \
+    /usr/include/c++/11/bits/align.h \
+    /usr/include/c++/11/bit \
     /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h \
     /usr/include/stdint.h \
+    /usr/include/x86_64-linux-gnu/bits/wchar.h \
     /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
-    /usr/include/c++/11/bits/localefwd.h \
-    /usr/include/x86_64-linux-gnu/c++/11/bits/c++locale.h \
-    /usr/include/c++/11/clocale \
-    /usr/include/locale.h \
-    /usr/include/x86_64-linux-gnu/bits/locale.h \
-    /usr/include/c++/11/cctype \
-    /usr/include/c++/11/bits/ios_base.h \
+    /usr/include/c++/11/bits/uses_allocator.h \
+    /usr/include/c++/11/bits/unique_ptr.h \
+    /usr/include/c++/11/tuple \
+    /usr/include/c++/11/array \
+    /usr/include/c++/11/bits/range_access.h \
+    /usr/include/c++/11/bits/invoke.h \
+    /usr/include/c++/11/bits/stl_function.h \
+    /usr/include/c++/11/backward/binders.h \
+    /usr/include/c++/11/bits/functional_hash.h \
+    /usr/include/c++/11/bits/hash_bytes.h \
+    /usr/include/c++/11/bits/shared_ptr.h \
+    /usr/include/c++/11/iosfwd \
+    /usr/include/c++/11/bits/stringfwd.h \
+    /usr/include/c++/11/bits/postypes.h \
+    /usr/include/c++/11/cwchar \
+    /usr/include/wchar.h \
+    /usr/include/x86_64-linux-gnu/bits/types/wint_t.h \
+    /usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h \
+    /usr/include/c++/11/bits/shared_ptr_base.h \
+    /usr/include/c++/11/typeinfo \
+    /usr/include/c++/11/bits/allocated_ptr.h \
+    /usr/include/c++/11/bits/refwrap.h \
+    /usr/include/c++/11/ext/aligned_buffer.h \
     /usr/include/c++/11/ext/atomicity.h \
     /usr/include/x86_64-linux-gnu/c++/11/bits/gthr.h \
     /usr/include/x86_64-linux-gnu/c++/11/bits/gthr-default.h \
@@ -214,20 +223,34 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h \
     /usr/include/x86_64-linux-gnu/c++/11/bits/atomic_word.h \
     /usr/include/x86_64-linux-gnu/sys/single_threaded.h \
+    /usr/include/c++/11/ext/concurrence.h \
+    /usr/include/c++/11/exception \
+    /usr/include/c++/11/bits/exception_ptr.h \
+    /usr/include/c++/11/bits/cxxabi_init_exception.h \
+    /usr/include/c++/11/bits/nested_exception.h \
+    /usr/include/c++/11/bits/shared_ptr_atomic.h \
+    /usr/include/c++/11/bits/atomic_base.h \
+    /usr/include/c++/11/bits/atomic_lockfree_defines.h \
+    /usr/include/c++/11/backward/auto_ptr.h \
+    /usr/include/c++/11/cstring \
+    /home/lucre/Project/Cuda_operator/include/utils.h \
+    /usr/include/c++/11/iostream \
+    /usr/include/c++/11/ostream \
+    /usr/include/c++/11/ios \
+    /usr/include/c++/11/bits/char_traits.h \
+    /usr/include/c++/11/cstdint \
+    /usr/include/c++/11/bits/localefwd.h \
+    /usr/include/x86_64-linux-gnu/c++/11/bits/c++locale.h \
+    /usr/include/c++/11/clocale \
+    /usr/include/locale.h \
+    /usr/include/x86_64-linux-gnu/bits/locale.h \
+    /usr/include/c++/11/cctype \
+    /usr/include/c++/11/bits/ios_base.h \
     /usr/include/c++/11/bits/locale_classes.h \
     /usr/include/c++/11/string \
-    /usr/include/c++/11/bits/allocator.h \
-    /usr/include/x86_64-linux-gnu/c++/11/bits/c++allocator.h \
-    /usr/include/c++/11/ext/new_allocator.h \
     /usr/include/c++/11/bits/ostream_insert.h \
     /usr/include/c++/11/bits/cxxabi_forced.h \
-    /usr/include/c++/11/bits/stl_function.h \
-    /usr/include/c++/11/backward/binders.h \
-    /usr/include/c++/11/bits/range_access.h \
     /usr/include/c++/11/bits/basic_string.h \
-    /usr/include/c++/11/ext/alloc_traits.h \
-    /usr/include/c++/11/bits/alloc_traits.h \
-    /usr/include/c++/11/bits/stl_construct.h \
     /usr/include/c++/11/ext/string_conversions.h \
     /usr/include/c++/11/cstdio \
     /usr/include/c++/11/cerrno \
@@ -239,7 +262,6 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/asm-generic/errno-base.h \
     /usr/include/x86_64-linux-gnu/bits/types/error_t.h \
     /usr/include/c++/11/bits/charconv.h \
-    /usr/include/c++/11/bits/functional_hash.h \
     /usr/include/c++/11/bits/basic_string.tcc \
     /usr/include/c++/11/bits/locale_classes.tcc \
     /usr/include/c++/11/system_error \
@@ -260,25 +282,5 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/c++/11/bits/ostream.tcc \
     /usr/include/c++/11/istream \
     /usr/include/c++/11/bits/istream.tcc \
-    /usr/include/c++/11/memory \
-    /usr/include/c++/11/bits/stl_uninitialized.h \
-    /usr/include/c++/11/bits/stl_tempbuf.h \
-    /usr/include/c++/11/bits/stl_raw_storage_iter.h \
-    /usr/include/c++/11/bits/align.h \
-    /usr/include/c++/11/bit \
-    /usr/include/c++/11/bits/uses_allocator.h \
-    /usr/include/c++/11/bits/unique_ptr.h \
-    /usr/include/c++/11/tuple \
-    /usr/include/c++/11/array \
-    /usr/include/c++/11/bits/invoke.h \
-    /usr/include/c++/11/bits/shared_ptr.h \
-    /usr/include/c++/11/bits/shared_ptr_base.h \
-    /usr/include/c++/11/bits/allocated_ptr.h \
-    /usr/include/c++/11/bits/refwrap.h \
-    /usr/include/c++/11/ext/aligned_buffer.h \
-    /usr/include/c++/11/ext/concurrence.h \
-    /usr/include/c++/11/bits/shared_ptr_atomic.h \
-    /usr/include/c++/11/bits/atomic_base.h \
-    /usr/include/c++/11/bits/atomic_lockfree_defines.h \
-    /usr/include/c++/11/backward/auto_ptr.h \
-    /home/lucre/Project/Cuda_operator/include/operators.h
+    /home/lucre/Project/Cuda_operator/include/operators.h \
+    /home/lucre/Project/Cuda_operator/include/gemm.h

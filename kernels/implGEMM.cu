@@ -768,10 +768,12 @@ __global__ void implgemm_kernel_5(param_t param) {
     // 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
     uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
     uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+    int y = weight_lds_addr + by * 128;
+    int x = input_lds_addr + bx * 128;
 
     // share memory buffer, 每个线程需要负责加载 4 * 2 数据
-    __shared__ float shm_weight[2][8 * 128];    // 列主序 shm_weight[4][32][8]
-    __shared__ float shm_input[2][132 * 8];   // 行主序 shm_input[8][4][32]
+    __shared__ float shm_weight[2][8 * 132];    // 列主序 shm_weight[4][32][8]
+    __shared__ float shm_input[2][128 * 8];   // 行主序 shm_input[8][4][32]
 
     uint32_t weight_sts_addr = (tx % 8) * 132 + (tx / 8) * 4 ;  // shm_weight[:4][tx / 8][tx % 8]
     uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx / 32][：4][tx % 32]
@@ -796,12 +798,12 @@ __global__ void implgemm_kernel_5(param_t param) {
 
     // 初始化 输出矩阵 , 中间矩阵
     int write_flag = 1;
-    // float weight_temp[2][8];
-    // float input_temp[2][8];
-    // float output_temp[8][8];
-    float weight_temp[8];
-    float input_temp[8];
+    float weight_temp[2][8];
+    float input_temp[2][8];
     float output_temp[8][8];
+    // float weight_temp[8];
+    // float input_temp[8];
+    // float output_temp[8][8];
     #pragma unroll
     for (int i = 0; i < 8; i++) {
     #pragma unroll
@@ -858,17 +860,17 @@ __global__ void implgemm_kernel_5(param_t param) {
     }
     __syncthreads();
 
-    // //lds stage , for subcrs = 0
-    // #pragma unroll
-    // for (int i = 0; i < 4; i++) {
-    //     input_temp[0][i] = shm_input[0][input_lds_addr + i];
-    //     input_temp[0][i + 4] = shm_input[0][input_lds_addr + i + 32];
-    // }
-    // #pragma unroll
-    // for (int i = 0; i < 4; i++) {
-    //     weight_temp[0][i] = shm_weight[0][weight_lds_addr + i];
-    //     weight_temp[0][i + 4] = shm_weight[0][weight_lds_addr + i + 16];
-    // }
+    //lds stage , for subcrs = 0
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        input_temp[0][i] = shm_input[0][input_lds_addr + i];
+        input_temp[0][i + 4] = shm_input[0][input_lds_addr + i + 32];
+    }
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        weight_temp[0][i] = shm_weight[0][weight_lds_addr + i];
+        weight_temp[0][i + 4] = shm_weight[0][weight_lds_addr + i + 16];
+    }
     
     // 主循环，注意每个循环内 负责一个 CRS tile 的计算，以及下一个循环需要的数据ldf + sts + (下个循环第一个lds使用的)
     // 
@@ -912,22 +914,51 @@ __global__ void implgemm_kernel_5(param_t param) {
             注意，这里其实之前已经提前lds一个数据.
             这里lds部分也做了DoubleBuffering，不仅仅是 ldg 和 sts 部分。
             但是，这里的代码显然会出现数据覆盖的问题，导致数据计算错误。
-            ！！！！ 只能弃用这部分的double buffering ，必然存在一定的数据覆盖问题。
+            ！！！！ 只能弃用这部分的double buffering ，必然存在一定的数据覆盖问题。（搞错了，share memory才会出现数据覆盖的问题）
         */
+        int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
+        #pragma unroll
+        for (int subcrs = 0; subcrs < 8 - 1; subcrs++) {
+            // lds下个循环使用的数据
+            #pragma unroll
+            for (int i = 0; i < 4; i++) {
+                weight_temp[(subcrs + 1) % 2][i] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i]; 
+                weight_temp[(subcrs + 1) % 2][i + 4] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i + 16]; 
+            }
+
+            #pragma unroll
+            for (int i = 0; i < 4; i++) {
+                input_temp[(subcrs + 1) % 2][i] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i]; 
+                input_temp[(subcrs + 1) % 2][i + 4] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i + 32];
+            }
+
+            // compute
+            #pragma unroll
+            for (int i = 0; i < 8; i++) {
+                #pragma unroll
+                for (int j = 0; j < 8; j++) {
+                    // if (z == 0 && y + i == 0 && ((x + j == 128 && j < 4) || (x + j - 4 == 128 + 32 && j >= 4))) {
+                    //     printf("step %d : %.9f += %.9f * %.9f\n",subcrs + crs, output_temp[i][j], input_temp[subcrs % 2][j] , weight_temp[subcrs % 2][i]);
+                    // }
+                    output_temp[i][j] += input_temp[subcrs % 2][j] * weight_temp[subcrs % 2][i];
+                }
+            }
+        }
+        
         // int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
         // #pragma unroll
-        // for (int subcrs = 0; subcrs < 8 - 1; subcrs++) {
+        // for (int subcrs = 0; subcrs < 8; subcrs++) {
         //     // lds下个循环使用的数据
         //     #pragma unroll
         //     for (int i = 0; i < 4; i++) {
-        //         weight_temp[(subcrs + 1) % 2][i] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i]; 
-        //         weight_temp[(subcrs + 1) % 2][i + 4] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i + 16]; 
+        //         weight_temp[i] = shm_weight[load_flag][weight_lds_addr + subcrs * 132 + i]; 
+        //         weight_temp[i + 4] = shm_weight[load_flag][weight_lds_addr + subcrs * 132 + i + 16]; 
         //     }
 
         //     #pragma unroll
         //     for (int i = 0; i < 4; i++) {
-        //         input_temp[(subcrs + 1) % 2][i] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i]; 
-        //         input_temp[(subcrs + 1) % 2][i + 4] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i + 32];
+        //         input_temp[i] = shm_input[load_flag][input_lds_addr + subcrs * 128 + i]; 
+        //         input_temp[i + 4] = shm_input[load_flag][input_lds_addr + subcrs * 128 + i + 32];
         //     }
 
         //     // compute
@@ -938,39 +969,10 @@ __global__ void implgemm_kernel_5(param_t param) {
         //             // if (i == 0 && j == 0 && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
         //             //     printf("step %d : %f += %f * %f\n",subcrs + crs, output_temp[i][j], input_temp[subcrs % 2][j] , weight_temp[subcrs % 2][i]);
         //             // }
-        //             output_temp[i][j] += input_temp[subcrs % 2][j] * weight_temp[subcrs % 2][i];
+        //             output_temp[i][j] += input_temp[j] * weight_temp[i];
         //         }
         //     }
         // }
-
-        int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
-        #pragma unroll
-        for (int subcrs = 0; subcrs < 8; subcrs++) {
-            // lds下个循环使用的数据
-            #pragma unroll
-            for (int i = 0; i < 4; i++) {
-                weight_temp[i] = shm_weight[load_flag][weight_lds_addr + subcrs * 132 + i]; 
-                weight_temp[i + 4] = shm_weight[load_flag][weight_lds_addr + subcrs * 132 + i + 16]; 
-            }
-
-            #pragma unroll
-            for (int i = 0; i < 4; i++) {
-                input_temp[i] = shm_input[load_flag][input_lds_addr + subcrs * 128 + i]; 
-                input_temp[i + 4] = shm_input[load_flag][input_lds_addr + subcrs * 128 + i + 32];
-            }
-
-            // compute
-            #pragma unroll
-            for (int i = 0; i < 8; i++) {
-                #pragma unroll
-                for (int j = 0; j < 8; j++) {
-                    // if (i == 0 && j == 0 && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
-                    //     printf("step %d : %f += %f * %f\n",subcrs + crs, output_temp[i][j], input_temp[subcrs % 2][j] , weight_temp[subcrs % 2][i]);
-                    // }
-                    output_temp[i][j] += input_temp[j] * weight_temp[i];
-                }
-            }
-        }
 
         /*
             上面其实还有一个循环没有计算，这里在前面塞了一个sts阶段掩藏延迟，和main loop外的sts一样的，为下一个 lds + compute 
@@ -987,39 +989,38 @@ __global__ void implgemm_kernel_5(param_t param) {
         write_flag = write_flag ^ 1;
 
         // lds下个循环使用的数据
-        // #pragma unroll
-        // for (int i = 0; i < 4; i++) {
-        //     weight_temp[0][i] = shm_weight[load_flag ^ 1][weight_lds_addr + i]; 
-        //     weight_temp[0][i + 4] = shm_weight[load_flag ^ 1][weight_lds_addr + i + 16]; 
-        // }
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            weight_temp[0][i] = shm_weight[load_flag ^ 1][weight_lds_addr + i]; 
+            weight_temp[0][i + 4] = shm_weight[load_flag ^ 1][weight_lds_addr + i + 16]; 
+        }
 
-        // #pragma unroll
-        // for (int i = 0; i < 4; i++) {
-        //     input_temp[0][i] = shm_input[load_flag ^ 1][input_lds_addr + i]; 
-        //     input_temp[0][i + 4] = shm_input[load_flag ^ 1][input_lds_addr + i + 32];
-        // }
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            input_temp[0][i] = shm_input[load_flag ^ 1][input_lds_addr + i]; 
+            input_temp[0][i + 4] = shm_input[load_flag ^ 1][input_lds_addr + i + 32];
+        }
 
         /*
             好啦，终于可以把 当前循环最后一个subcrs的数据计算完了.
             subcrs = 7
         */
-        // #pragma unroll
-        // for (int i = 0; i < 8; i++) {
-        //     #pragma unroll
-        //     for (int j = 0; j < 8; j++) {
-        //         // if (i == 0 && j == 0 && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
-        //         //     printf("step %d : %.9f += %.9f * %.9f\n",7 + crs, output_temp[i][j], input_temp[1][j] , weight_temp[1][i]);
-        //         // }
-        //         output_temp[i][j] += input_temp[1][j] * weight_temp[1][i];
-        //     }
-        // }
+        #pragma unroll
+        for (int i = 0; i < 8; i++) {
+            #pragma unroll
+            for (int j = 0; j < 8; j++) {
+                // if (z == 0 && y + i == 0 && ((x + j == 128 && j < 4) || (x + j - 4 == 128 + 32 && j >= 4))){
+                //     printf("step %d : %.9f += %.9f * %.9f\n",7 + crs, output_temp[i][j], input_temp[1][j] , weight_temp[1][i]);
+                // } 
+                output_temp[i][j] += input_temp[1][j] * weight_temp[1][i];
+            }
+        }
+
     }
 
 
     // 计算输出偏移
     int output_offset;
-    int y = weight_lds_addr + by * 128;
-    int x = input_lds_addr + bx * 128;
     #pragma unroll
     for (int i = 0; i < 4; i++)
     {

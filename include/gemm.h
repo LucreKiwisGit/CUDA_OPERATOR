@@ -1,10 +1,13 @@
 #ifndef GEMM_H
 #define GEMM_H
 
+#include <cuda_fp16.h>
+
 // 行优先存储
 #define OFFSET(row, col, ld) ((row) * (ld) + (col))
 // 将一个指针转换为 float4 类型的指针并访问它指向的第一个元素
 #define FLOAT4(pointer) (reinterpret_cast<float4*>(&(pointer))[0])
+#define HALF4(pointer) (reinterpret_cast<half4*>(&(pointer))[0])
 
 typedef struct {
     float* A;
@@ -40,6 +43,11 @@ __global__ void mySgemmV2Aligned(
 
 __global__ void mySgemmV3Aligned(
     float * __restrict__ A, float * __restrict__ B, float * __restrict__ C,
+    const int M, const int N, const int K
+);
+
+__global__ void myHgemmV3Aligned(
+    __half * __restrict__ A, __half * __restrict__ B, __half * __restrict__ C,
     const int M, const int N, const int K
 );
 

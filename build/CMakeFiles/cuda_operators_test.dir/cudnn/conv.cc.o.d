@@ -173,4 +173,9 @@ CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.o: \
  /usr/local/cuda/include/vector_functions.h \
  /usr/local/cuda/include/vector_functions.hpp /usr/include/c++/11/utility \
  /usr/include/c++/11/bits/stl_relops.h \
- /home/lucre/Project/Cuda_operator/include/convs2d.h
+ /home/lucre/Project/Cuda_operator/include/convs2d.h \
+ /usr/local/cuda/include/cuda_fp16.h /usr/local/cuda/include/nv/target \
+ /usr/local/cuda/include/nv/detail/__target_macros \
+ /usr/local/cuda/include/nv/detail/__preprocessor \
+ /usr/include/c++/11/cstring /usr/include/string.h /usr/include/strings.h \
+ /usr/local/cuda/include/cuda_fp16.hpp

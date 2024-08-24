@@ -255,7 +255,6 @@ CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o : /home/lucre/Pro
     /usr/include/c++/11/bits/ostream.tcc \
     /usr/include/c++/11/istream \
     /usr/include/c++/11/bits/istream.tcc \
-    /home/lucre/Project/Cuda_operator/include/convs2d.h \
     /usr/include/c++/11/memory \
     /usr/include/c++/11/bits/stl_uninitialized.h \
     /usr/include/c++/11/bits/stl_tempbuf.h \
@@ -277,6 +276,12 @@ CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o : /home/lucre/Pro
     /usr/include/c++/11/bits/atomic_base.h \
     /usr/include/c++/11/bits/atomic_lockfree_defines.h \
     /usr/include/c++/11/backward/auto_ptr.h \
+    /usr/local/cuda/include/cuda_fp16.h \
+    /usr/local/cuda/include/nv/target \
+    /usr/local/cuda/include/nv/detail/__target_macros \
+    /usr/local/cuda/include/nv/detail/__preprocessor \
+    /usr/local/cuda/include/cuda_fp16.hpp \
+    /home/lucre/Project/Cuda_operator/include/convs2d.h \
     /usr/lib/gcc/x86_64-linux-gnu/11/include/omp.h \
     /home/lucre/Project/Cuda_operator/include/verify.h \
     /usr/include/c++/11/chrono \

@@ -47,9 +47,10 @@ include_directories(${CUDNN_INCLUDE_DIR})
 
 FILE(GLOB SRC_FILES ${PROJECT_SOURCE_DIR}/test/*.cpp ${PROJECT_SOURCE_DIR}/test/*.cu ${PROJECT_SOURCE_DIR}/kernel/*.cpp 
                     ${PROJECT_SOURCE_DIR}/kernels/implGEMM.cu ${PROJECT_SOURCE_DIR}/kernels/directConv2d.cc ${PROJECT_SOURCE_DIR}/kernels/GEMM.cu
+                    ${PROJECT_SOURCE_DIR}/kernels/*.cu 
                     ${PROJECT_SOURCE_DIR}/cudnn/*.cc
                     ${PROJECT_SOURCE_DIR}/include/*.h 
-                    ${PROJECT_SOURCE_DIR}/utils/*.cpp
+                    ${PROJECT_SOURCE_DIR}/utils/*.cpp ${PROJECT_SOURCE_DIR}/utils/*.cu
                     ${PROJECT_SOURCE_DIR}/main.cu)
 
 # MESSAGE(FATAL_ERROR "SRC_FILES: ${SRC_FILES}")
@@ -61,9 +62,9 @@ target_link_libraries(${TARGET_NAME} cuda cudart ${OpenMP_CXX_LIBRARIES} cublas 
 
 # if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 #     message("Building in Debug mode")
-# target_compile_options(${TARGET_NAME} PRIVATE
-#     $<$<COMPILE_LANGUAGE:CUDA>:-G>  # 仅在Debug模式下添加-G选项
-# )
+target_compile_options(${TARGET_NAME} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-G>  # 仅在Debug模式下添加-G选项
+)
 # endif()
 
 add_definitions(-pthread -g)

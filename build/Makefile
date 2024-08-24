@@ -201,6 +201,30 @@ kernels/directConv2d.cc.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.s
 .PHONY : kernels/directConv2d.cc.s
 
+kernels/im2colGEMM.o: kernels/im2colGEMM.cu.o
+.PHONY : kernels/im2colGEMM.o
+
+# target to build an object file
+kernels/im2colGEMM.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o
+.PHONY : kernels/im2colGEMM.cu.o
+
+kernels/im2colGEMM.i: kernels/im2colGEMM.cu.i
+.PHONY : kernels/im2colGEMM.i
+
+# target to preprocess a source file
+kernels/im2colGEMM.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.i
+.PHONY : kernels/im2colGEMM.cu.i
+
+kernels/im2colGEMM.s: kernels/im2colGEMM.cu.s
+.PHONY : kernels/im2colGEMM.s
+
+# target to generate assembly for a file
+kernels/im2colGEMM.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.s
+.PHONY : kernels/im2colGEMM.cu.s
+
 kernels/implGEMM.o: kernels/implGEMM.cu.o
 .PHONY : kernels/implGEMM.o
 
@@ -273,6 +297,54 @@ test/test_GEMM.cu.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.s
 .PHONY : test/test_GEMM.cu.s
 
+test/test_im2col.o: test/test_im2col.cu.o
+.PHONY : test/test_im2col.o
+
+# target to build an object file
+test/test_im2col.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o
+.PHONY : test/test_im2col.cu.o
+
+test/test_im2col.i: test/test_im2col.cu.i
+.PHONY : test/test_im2col.i
+
+# target to preprocess a source file
+test/test_im2col.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.i
+.PHONY : test/test_im2col.cu.i
+
+test/test_im2col.s: test/test_im2col.cu.s
+.PHONY : test/test_im2col.s
+
+# target to generate assembly for a file
+test/test_im2col.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.s
+.PHONY : test/test_im2col.cu.s
+
+test/test_im2colGemm.o: test/test_im2colGemm.cu.o
+.PHONY : test/test_im2colGemm.o
+
+# target to build an object file
+test/test_im2colGemm.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o
+.PHONY : test/test_im2colGemm.cu.o
+
+test/test_im2colGemm.i: test/test_im2colGemm.cu.i
+.PHONY : test/test_im2colGemm.i
+
+# target to preprocess a source file
+test/test_im2colGemm.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.i
+.PHONY : test/test_im2colGemm.cu.i
+
+test/test_im2colGemm.s: test/test_im2colGemm.cu.s
+.PHONY : test/test_im2colGemm.s
+
+# target to generate assembly for a file
+test/test_im2colGemm.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.s
+.PHONY : test/test_im2colGemm.cu.s
+
 test/test_implicitGemm.o: test/test_implicitGemm.cu.o
 .PHONY : test/test_implicitGemm.o
 
@@ -296,6 +368,30 @@ test/test_implicitGemm.s: test/test_implicitGemm.cu.s
 test/test_implicitGemm.cu.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.s
 .PHONY : test/test_implicitGemm.cu.s
+
+utils/cuda_utils.o: utils/cuda_utils.cu.o
+.PHONY : utils/cuda_utils.o
+
+# target to build an object file
+utils/cuda_utils.cu.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o
+.PHONY : utils/cuda_utils.cu.o
+
+utils/cuda_utils.i: utils/cuda_utils.cu.i
+.PHONY : utils/cuda_utils.i
+
+# target to preprocess a source file
+utils/cuda_utils.cu.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.i
+.PHONY : utils/cuda_utils.cu.i
+
+utils/cuda_utils.s: utils/cuda_utils.cu.s
+.PHONY : utils/cuda_utils.s
+
+# target to generate assembly for a file
+utils/cuda_utils.cu.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cuda_operators_test.dir/build.make CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.s
+.PHONY : utils/cuda_utils.cu.s
 
 utils/getopt.o: utils/getopt.cpp.o
 .PHONY : utils/getopt.o
@@ -339,6 +435,9 @@ help:
 	@echo "... kernels/directConv2d.o"
 	@echo "... kernels/directConv2d.i"
 	@echo "... kernels/directConv2d.s"
+	@echo "... kernels/im2colGEMM.o"
+	@echo "... kernels/im2colGEMM.i"
+	@echo "... kernels/im2colGEMM.s"
 	@echo "... kernels/implGEMM.o"
 	@echo "... kernels/implGEMM.i"
 	@echo "... kernels/implGEMM.s"
@@ -348,9 +447,18 @@ help:
 	@echo "... test/test_GEMM.o"
 	@echo "... test/test_GEMM.i"
 	@echo "... test/test_GEMM.s"
+	@echo "... test/test_im2col.o"
+	@echo "... test/test_im2col.i"
+	@echo "... test/test_im2col.s"
+	@echo "... test/test_im2colGemm.o"
+	@echo "... test/test_im2colGemm.i"
+	@echo "... test/test_im2colGemm.s"
 	@echo "... test/test_implicitGemm.o"
 	@echo "... test/test_implicitGemm.i"
 	@echo "... test/test_implicitGemm.s"
+	@echo "... utils/cuda_utils.o"
+	@echo "... utils/cuda_utils.i"
+	@echo "... utils/cuda_utils.s"
 	@echo "... utils/getopt.o"
 	@echo "... utils/getopt.i"
 	@echo "... utils/getopt.s"

@@ -7,10 +7,10 @@
 #include <omp.h>
 #include "verify.h"
 #include <chrono>
+#include <cuda_fp16.h>
 
 
-
-void implicit_gemm_fp16_test() {
+void im2col_gemm_fp16_test() {
 
     // 设置随机种子
     srand(0);
@@ -56,44 +56,57 @@ void implicit_gemm_fp16_test() {
         auto bias = std::make_unique<float[]>(k);
         auto output = std::make_unique<float[]>(n * k * OH * OW);
         auto output_benchmark = std::make_unique<float[]>(n * k * OH * OW);
-        // float *input = (float *)malloc(n * c * h * w * sizeof(float));
-        // float *weight = (float *)malloc(k * c * r * s * sizeof(float));
-        // float *bias = (float *)malloc(k * sizeof(float));
-        // float *output = (float *)malloc(n * k * OH * OW * sizeof(float));
-        // float *output_benchmark = (float *)malloc(n * k * OH * OW * sizeof(float));
 
-        std::unique_ptr<float, CudaDeleter> input_device(nullptr, CudaDeleter());
-        std::unique_ptr<float, CudaDeleter> weight_device(nullptr, CudaDeleter());
-        std::unique_ptr<float, CudaDeleter> bias_device(nullptr, CudaDeleter());
-        std::unique_ptr<float, CudaDeleter> output_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<__half> input_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<__half> weight_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<__half>  bias_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<__half> output_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<float> output_fp32_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<float> input_fp32_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<float> weight_fp32_device(nullptr, CudaDeleter());
+        unique_ptr_cuda<float>  bias_fp32_device(nullptr, CudaDeleter());
         
         cudaError_t err;
-        err = cudaMalloc((void **)&input_device, n * c * h * w * sizeof(float));
+        err = cudaMalloc((void **)&input_device, n * c * h * w * sizeof(__half));
         if (err != cudaSuccess) {
             printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        err = cudaMalloc((void **)&weight_device, k * c * r * s * sizeof(float));
+        err = cudaMalloc((void **)&weight_device, k * c * r * s * sizeof(__half));
         if (err != cudaSuccess) {
             printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        err = cudaMalloc((void **)&bias_device, k * sizeof(float));
+        err = cudaMalloc((void **)&bias_device, k * sizeof(__half));
         if (err != cudaSuccess) {
             printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-        err = cudaMalloc((void **)&output_device, n * k * OH * OW * sizeof(float));
+        err = cudaMalloc((void **)&output_device, n * k * OH * OW * sizeof(__half));
         if (err != cudaSuccess) {
             printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
             exit(-1);
         }
-
-        // float *input_device, *weight_device, *bias_device, *output_device;
-        // cudaMalloc((void **)&input_device, n * c * h * w * sizeof(float));
-        // cudaMalloc((void **)&weight_device, k * c * r * s * sizeof(float));
-        // cudaMalloc((void **)&bias_device, k * sizeof(float));
-        // cudaMalloc((void **)&output_device, n * k * OH * OW * sizeof(float));
+        err = cudaMalloc((void **)&input_fp32_device, n * c * h * w * sizeof(float));
+        if (err != cudaSuccess) {
+            printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
+        err = cudaMalloc((void **)&weight_fp32_device, k * c * r * s * sizeof(float));
+        if (err != cudaSuccess) {
+            printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
+        err = cudaMalloc((void **)&bias_fp32_device, k * sizeof(float));
+        if (err != cudaSuccess) {
+            printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
+        err = cudaMalloc((void **)&output_fp32_device, n * k * OH * OW * sizeof(float));
+        if (err != cudaSuccess) {
+            printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
+            exit(-1);
+        }
 
         // random input
         for (int ii = 0; ii < n * c * h * w; ii++) {
@@ -108,30 +121,20 @@ void implicit_gemm_fp16_test() {
             bias[ii] = (float)rand() / RAND_MAX;
         }
 
-        // // 固定输入，用于debug
-        // for (int ii = 0; ii < n * c * h * w; ii++) {
-        //     input[ii] = (float)ii / 100;
-        // }
-
-        // for (int ii = 0; ii < k * c * r * s; ii++) {
-        //     weight[ii] = (float)ii / 100;
-        // }
-
-        // for (int ii = 0; ii < k; ii++) {
-        //     bias[ii] = (float)ii / 100;
-        // }
-
         for (int ii = 0; ii < n * k * OH * OW; ii++) {
             output[ii] = (float)rand() / RAND_MAX;
             output_benchmark[ii] = (float)rand() / RAND_MAX;
         }
 
-        cudaMemcpy(input_device.get(), input.get(), n * c * h * w * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(weight_device.get(), weight.get(), k * c * r * s * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(bias_device.get(), bias.get(), k * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(input_fp32_device.get(), input.get(), n * c * h * w * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(weight_fp32_device.get(), weight.get(), k * c * r * s * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(bias_fp32_device.get(), bias.get(), k * sizeof(float), cudaMemcpyHostToDevice);
+        float2Half(input_fp32_device.get(), input_device.get(), n * c * h * w);
+        float2Half(weight_fp32_device.get(), weight_device.get(), k * c * r * s);
+        float2Half(bias_fp32_device.get(), bias_device.get(), k);
 
         // parameter 
-        param_t param;
+        param_16t param;
 
         param.input = input_device.get();
         param.weight = weight_device.get();
@@ -161,18 +164,19 @@ void implicit_gemm_fp16_test() {
 
         
         // warm up
-        launch_implgemm(param);
+        im2col_gemm_fp16(param);
         // direct_conv2dCuDNN(param);
-
-        cudaMemcpy(output.get(), output_device.get(), n * k * OH * OW * sizeof(float), cudaMemcpyDeviceToHost);
+        
+        cudaMemcpy(output.get(), output_device.get(), n * k * OH * OW * sizeof(__half), cudaMemcpyDeviceToHost);
+        half2Float(output_device.get(), output_fp32_device.get(), param.n * param.k * param.Oh * param.Ow);
 
         // 验证正确率, 使用cudnn
         
-        auto start_ref = std::chrono::steady_clock::now();
+        auto start_ref = std::chrono::steady_clock::now();  
         omp_set_num_threads(8);
         // direct_conv2dCpu(param);
-        direct_conv2dCuDNN(param);
-        cudaMemcpy(output_benchmark.get(), output_device.get(), n * k * OH * OW * sizeof(float), cudaMemcpyDeviceToHost);
+        direct_conv2dCuDNN_fp16(param);
+        cudaMemcpy(output_benchmark.get(), output_device.get(), n * k * OH * OW * sizeof(__half), cudaMemcpyDeviceToHost);
 
         auto end_ref = std::chrono::steady_clock::now();
 
@@ -182,9 +186,9 @@ void implicit_gemm_fp16_test() {
             if (abs(output[ii] - output_benchmark[ii]) > abs(output[ii]) * 0.00001) {
                 printf("error, postion:%d, cudnnvalue:%.8f, implGEMMvalue:%.8f\n", ii, output_benchmark[ii], output[ii]);
                 error++;
-                if (error > 0) {
-                    break;
-                }
+                // if (error > 0) {
+                //     break;
+                // }
             }
         }
 
@@ -214,7 +218,7 @@ void implicit_gemm_fp16_test() {
 
         int iternum = 10;
         for (int i = 0; i < iternum; i++) {
-            launch_implgemm(param);
+            im2col_gemm_fp16(param);
         }
 
         cudaEventRecord(stop, nullptr);
@@ -229,8 +233,8 @@ void implicit_gemm_fp16_test() {
         gflops = flopsPerConv / (timePerConv / 1000.0) / 1e9;
 
         // printf("n: %2d, h: %2d, w: %2d, c: %2d, r: %d, s: %d, k: %2d\n", n, h, w, c, r, s, k);
-        printf("MyImplGEMM Time per convolution: %f ms\n", timePerConv);
-        printf("MyImplGEMM Performance: %f GFlops\n", gflops);
+        printf("MyIm2colGEMM Time per convolution: %f ms\n", timePerConv);
+        printf("MyIm2colGEMM Performance: %f GFlops\n", gflops);
 
         
 

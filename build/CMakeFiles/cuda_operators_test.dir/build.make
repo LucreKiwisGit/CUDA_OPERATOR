@@ -111,10 +111,24 @@ CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/lucre/Project/Cuda_operator/kernels/directConv2d.cc -o CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.s
 
+CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
+CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o: ../kernels/im2colGEMM.cu
+CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CUDA object CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o"
+	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o -MF CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/kernels/im2colGEMM.cu -o CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o
+
+CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CUDA source to CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.i"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_PREPROCESSED_SOURCE
+
+CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CUDA source to assembly CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.s"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_ASSEMBLY_SOURCE
+
 CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
 CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o: ../kernels/implGEMM.cu
 CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CUDA object CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CUDA object CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o"
 	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o -MF CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/kernels/implGEMM.cu -o CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o
 
 CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.i: cmake_force
@@ -128,7 +142,7 @@ CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.s: cmake_force
 CMakeFiles/cuda_operators_test.dir/main.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
 CMakeFiles/cuda_operators_test.dir/main.cu.o: ../main.cu
 CMakeFiles/cuda_operators_test.dir/main.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CUDA object CMakeFiles/cuda_operators_test.dir/main.cu.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CUDA object CMakeFiles/cuda_operators_test.dir/main.cu.o"
 	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/main.cu.o -MF CMakeFiles/cuda_operators_test.dir/main.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/main.cu -o CMakeFiles/cuda_operators_test.dir/main.cu.o
 
 CMakeFiles/cuda_operators_test.dir/main.cu.i: cmake_force
@@ -142,7 +156,7 @@ CMakeFiles/cuda_operators_test.dir/main.cu.s: cmake_force
 CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
 CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o: ../test/test_GEMM.cu
 CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CUDA object CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CUDA object CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o"
 	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o -MF CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/test/test_GEMM.cu -o CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o
 
 CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.i: cmake_force
@@ -153,10 +167,38 @@ CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CUDA source to assembly CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.s"
 	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_ASSEMBLY_SOURCE
 
+CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
+CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o: ../test/test_im2col.cu
+CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CUDA object CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o"
+	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o -MF CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/test/test_im2col.cu -o CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o
+
+CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CUDA source to CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.i"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_PREPROCESSED_SOURCE
+
+CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CUDA source to assembly CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.s"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_ASSEMBLY_SOURCE
+
+CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
+CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o: ../test/test_im2colGemm.cu
+CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CUDA object CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o"
+	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o -MF CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/test/test_im2colGemm.cu -o CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o
+
+CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CUDA source to CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.i"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_PREPROCESSED_SOURCE
+
+CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CUDA source to assembly CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.s"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_ASSEMBLY_SOURCE
+
 CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
 CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o: ../test/test_implicitGemm.cu
 CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CUDA object CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CUDA object CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o"
 	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o -MF CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/test/test_implicitGemm.cu -o CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o
 
 CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.i: cmake_force
@@ -167,10 +209,24 @@ CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CUDA source to assembly CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.s"
 	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_ASSEMBLY_SOURCE
 
+CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o: CMakeFiles/cuda_operators_test.dir/flags.make
+CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o: ../utils/cuda_utils.cu
+CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CUDA object CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o"
+	/usr/bin/nvcc -forward-unknown-to-host-compiler $(CUDA_DEFINES) $(CUDA_INCLUDES) $(CUDA_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o -MF CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o.d -x cu -c /home/lucre/Project/Cuda_operator/utils/cuda_utils.cu -o CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o
+
+CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CUDA source to CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.i"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_PREPROCESSED_SOURCE
+
+CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CUDA source to assembly CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.s"
+	$(CMAKE_COMMAND) -E cmake_unimplemented_variable CMAKE_CUDA_CREATE_ASSEMBLY_SOURCE
+
 CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o: CMakeFiles/cuda_operators_test.dir/flags.make
 CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o: ../utils/getopt.cpp
 CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o: CMakeFiles/cuda_operators_test.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o -MF CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o.d -o CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o -c /home/lucre/Project/Cuda_operator/utils/getopt.cpp
 
 CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.i: cmake_force
@@ -186,10 +242,14 @@ cuda_operators_test_OBJECTS = \
 "CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.o" \
 "CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.o" \
 "CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.o" \
+"CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o" \
 "CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o" \
 "CMakeFiles/cuda_operators_test.dir/main.cu.o" \
 "CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o" \
+"CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o" \
+"CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o" \
 "CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o" \
+"CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o" \
 "CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o"
 
 # External object files for target cuda_operators_test
@@ -198,17 +258,21 @@ cuda_operators_test_EXTERNAL_OBJECTS =
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/cudnn/conv.cc.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/kernels/directConv2d.cc.o
+cuda_operators_test: CMakeFiles/cuda_operators_test.dir/kernels/im2colGEMM.cu.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/kernels/implGEMM.cu.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/main.cu.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/test/test_GEMM.cu.o
+cuda_operators_test: CMakeFiles/cuda_operators_test.dir/test/test_im2col.cu.o
+cuda_operators_test: CMakeFiles/cuda_operators_test.dir/test/test_im2colGemm.cu.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/test/test_implicitGemm.cu.o
+cuda_operators_test: CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/utils/getopt.cpp.o
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/build.make
 cuda_operators_test: /usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so
 cuda_operators_test: /usr/lib/x86_64-linux-gnu/libpthread.a
 cuda_operators_test: /usr/lib/x86_64-linux-gnu/libcudnn.so
 cuda_operators_test: CMakeFiles/cuda_operators_test.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX executable cuda_operators_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/lucre/Project/Cuda_operator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Linking CXX executable cuda_operators_test"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/cuda_operators_test.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

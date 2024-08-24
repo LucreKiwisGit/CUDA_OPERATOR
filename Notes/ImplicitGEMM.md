@@ -282,3 +282,7 @@ __global__ void implgemm_kernel_2(param_t param) {
 
 ## 2.3 *ImplGEMM_2 (warp-level)*
 
+
+
+## 2.5 ImplGEMM_final
+

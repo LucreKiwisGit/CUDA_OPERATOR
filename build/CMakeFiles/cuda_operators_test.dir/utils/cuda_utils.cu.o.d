@@ -1,4 +1,4 @@
-CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator/main.cu \
+CMakeFiles/cuda_operators_test.dir/utils/cuda_utils.cu.o : /home/lucre/Project/Cuda_operator/utils/cuda_utils.cu \
     /usr/include/stdc-predef.h \
     /usr/local/cuda/include/cuda_runtime.h \
     /usr/local/cuda/include/crt/host_config.h \
@@ -153,12 +153,6 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/c++/11/bits/move.h \
     /usr/include/c++/11/type_traits \
     /usr/include/c++/11/initializer_list \
-    /home/lucre/Project/Cuda_operator/include/convs2d.h \
-    /usr/local/cuda/include/cuda_fp16.h \
-    /usr/local/cuda/include/nv/target \
-    /usr/local/cuda/include/nv/detail/__target_macros \
-    /usr/local/cuda/include/nv/detail/__preprocessor \
-    /usr/local/cuda/include/cuda_fp16.hpp \
     /home/lucre/Project/Cuda_operator/include/utils.h \
     /usr/include/c++/11/iostream \
     /usr/include/c++/11/ostream \
@@ -281,4 +275,9 @@ CMakeFiles/cuda_operators_test.dir/main.cu.o : /home/lucre/Project/Cuda_operator
     /usr/include/c++/11/bits/atomic_base.h \
     /usr/include/c++/11/bits/atomic_lockfree_defines.h \
     /usr/include/c++/11/backward/auto_ptr.h \
+    /usr/local/cuda/include/cuda_fp16.h \
+    /usr/local/cuda/include/nv/target \
+    /usr/local/cuda/include/nv/detail/__target_macros \
+    /usr/local/cuda/include/nv/detail/__preprocessor \
+    /usr/local/cuda/include/cuda_fp16.hpp \
     /home/lucre/Project/Cuda_operator/include/operators.h

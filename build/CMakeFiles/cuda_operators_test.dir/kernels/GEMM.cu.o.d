@@ -168,4 +168,5 @@ CMakeFiles/cuda_operators_test.dir/kernels/GEMM.cu.o : /home/lucre/Project/Cuda_
     /usr/local/cuda/include/cuda_bf16.h \
     /usr/local/cuda/include/cuda_bf16.hpp \
     /usr/lib/gcc/x86_64-linux-gnu/11/include/float.h \
-    /home/lucre/Project/Cuda_operator/include/gemm.h
+    /home/lucre/Project/Cuda_operator/include/gemm.h \
+    /home/lucre/Project/Cuda_operator/include/convs2d.h

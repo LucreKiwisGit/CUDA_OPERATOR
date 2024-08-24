@@ -11,5 +11,8 @@ void implicit_gemm_fp16_test();
 
 void gemm_fp32_test();
 
+void im2col_gemm_fp16_test();
+
+
 
 #endif
