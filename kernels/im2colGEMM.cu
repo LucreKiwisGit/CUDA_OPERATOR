@@ -53,23 +53,31 @@ __global__ void im2col_kernel(param_16t param) {
         int b = z / param.c;
         int channel = z % param.c;
 
-        int im_col = ow * param.stride_w -param.pad_w;
-        int im_row = oh * param.stride_h -param.pad_h;
-        int input_offset = b * param.c * param.h * param.w + channel * param.h * param.w + oh * param.Ow + ow;
-        int col_offset = channel * param.kh * param.kw * param.n * param.Oh * param.Ow + b * param.Oh * param.Ow; 
+        int im_col = ow * param.stride_w - param.pad_w;
+        int im_row = oh * param.stride_h - param.pad_h;
+        int input_offset = b * param.c * param.h * param.w + channel * param.h * param.w;
+        int col_offset = channel * param.kh * param.kw * param.n * param.Oh * param.Ow + b * param.Oh * param.Ow + oh * param.Ow + ow; 
 
         #pragma unroll
         for (int kh = 0; kh < param.kh; ++kh) {
             #pragma unroll
-            for (int kw = 0; kw < param.kw; ++kw) {
+            for (int kw = 0; kw < param.kw; ++kw) { 
                 int ori_h = im_row + kh;
                 int ori_w = im_col + kw;
                 // int col_index = (b * param.c + channel) * param.kh * param.kw * param.Oh * param.Ow + 
                 //                 (kh * param.kw + kw) * param.Oh * param.Ow + oh * param.Ow + ow;
                 // int col_index = ((z * param.kh + kh) * param.kw + kw) * param.Oh * param.Ow + oh * param.Ow + ow;
                 int col_tmp = (kh * param.kw + kw) * param.n * param.Oh * param.Ow;
-                int input_tmp = kh * param.w + kw;   
-                
+                int input_tmp = ori_h * param.w + ori_w;   
+
+                /*  
+                    input : n * c * h * w , im2col_input : c * r * s * n * oh * ow
+                    input[b][c][ori_h][ori_w] ----> im2col_input[c][kh][kw][b * Oh * Ow]
+                    ori_h = im_row + kh = oh * stride_h - pad_h + kh 
+                    ori_w = im_col + kw = ow * stride_w - pad_w + kw
+                    addr translation:
+                    input_offset + input_tmp ---> col_offset + col_tmp
+                */
                 if (ori_h >= 0 && ori_h < param.h && ori_w >= 0 && ori_w < param.w) {
                     param.im2col_input[col_offset + col_tmp] = param.input[input_offset + input_tmp];
                 }

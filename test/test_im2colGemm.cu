@@ -167,8 +167,9 @@ void im2col_gemm_fp16_test() {
         im2col_gemm_fp16(param);
         // direct_conv2dCuDNN(param);
         
-        cudaMemcpy(output.get(), output_device.get(), n * k * OH * OW * sizeof(__half), cudaMemcpyDeviceToHost);
         half2Float(output_device.get(), output_fp32_device.get(), param.n * param.k * param.Oh * param.Ow);
+        cudaMemcpy(output.get(), output_fp32_device.get(), n * k * OH * OW * sizeof(__half), cudaMemcpyDeviceToHost);
+        
 
         // 验证正确率, 使用cudnn
         
@@ -176,8 +177,9 @@ void im2col_gemm_fp16_test() {
         omp_set_num_threads(8);
         // direct_conv2dCpu(param);
         direct_conv2dCuDNN_fp16(param);
-        cudaMemcpy(output_benchmark.get(), output_device.get(), n * k * OH * OW * sizeof(__half), cudaMemcpyDeviceToHost);
-
+        half2Float(output_device.get(), output_fp32_device.get(), param.n * param.k * param.Oh * param.Ow);
+        cudaMemcpy(output_benchmark.get(), output_fp32_device.get(), n * k * OH * OW * sizeof(__half), cudaMemcpyDeviceToHost);
+        
         auto end_ref = std::chrono::steady_clock::now();
 
 
