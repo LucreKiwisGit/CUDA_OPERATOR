@@ -197,7 +197,10 @@ __global__ void implgemm_kernel_2_v2(param_t param) {
     我们知道每个线程快负责计算一个 16 * 16 的矩阵，每个线程负责计算一个元素的值，并且是weight行向量和input列向量的向量积。
     这里和上一个实现最大的不同是，在执行相同的加载操作之后， 选择的行向量 和 列向量 是不同的。
     因为， 我们将一个warp内的线程划分为 4 * 8 warp tile，这样的话， 同一时刻一个warp内的线程负责计算一个4 * 8的结果矩阵。
-    这时， 产生的bank conflict的次数其实是与 warpx（8） + warpy（4） 成正比的。尽量的避免了 bank conflict。
+    // 这时， 产生的bank conflict的次数其实是与 warpx（8） + warpy（4） 成正比的。尽量的避免了 bank conflict。
+    搞错了，不是bankconflict问题，而是一个warp访问shared memory的次数。
+    访问次数 = 访问shm_input次数 + 访问shm_weight次数 = O(warpx + warpy)
+    也就是说 warpx + warpy 越小越好。
 */
 __global__ void implgemm_kernel_3(param_t param) {
     // 这里为了排列warp,合并了threadIdx的x和y维度

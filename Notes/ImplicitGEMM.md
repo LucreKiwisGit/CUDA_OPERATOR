@@ -118,171 +118,437 @@ oh = (h - r + 2 * p) / u + 1
 ow = (w - s + 2 * q) / v + 1
 ```
 
-### 2.1 *ImplGEMM_0 naive-blocked GEMM*  
 
-首先划分每个线程的任务，参数如下：
 
-```c++
-int blockx =  ((outh * outw + 15) / 16); // blockx  number
-int blocky = (k + 15) / 16;           // blocky  number
-int blockz = n;                       // blockz  number
-int threadx = 16;                     // threadx number per block
-int thready = 16;                     // thready number per block
-int threadz = 1;                      // threadz number per block
-dim3 block(threadx, thready,threadz);
-dim3 grid(blockx, blocky,blockz);
-implgemm<<<grid,block>>>(param);
+###  线程任务划分
+
+先简单介绍下流程：
+
+```shell
+--ldg + sts 阶段 ，从HBG里加载数据到shared memory;
+--lds 阶段，从shared memory读取计算使用的数据;
+--compute 阶段，计算数据；
 ```
 
-可以看出，每个线程块负责的运算部分为：
+==threadblock level==
 
-![image-20240806142644022](ImplicitGEMM.assets/image-20240806142644022.png)
+```c++
+int blockx = (param.Oh * param.Ow + 16) / 16 ;
+int blocky = (param.k + 16) / 16;
+int blockz = param.n;
+int threadx = 256;         // 这里把 threadx 和 thready 两个维度合并了，方便处理
+int thready = 1;
+int threadz = 1;
+```
 
-每个线程负责的计算部分为：
+我们知道ImplGemm任务是计算一个GEMM任务。
 
-![image-20240806142550036](ImplicitGEMM.assets/image-20240806142550036.png)
+$M_{weight}M_{input} = M_{output}$
 
+$M_{weight} \in R^{k \times crs}, M_{input} \in R^{crs \times NOhOw}, M_{output} \in R^{k \times NOhOw}$
 
+同时，常规的引用 shared memory 来减少对HBG的访问。每个threadblock需要维护两个共享内存数组。
 
-**核函数实现**
+```c++
+__shared__ float shInput[16][16];
+__shared__ float shWeight[16][16];
+int inputOffset = z * param.h * param.w * param.c;
+int weightOffset = y * param.c * param.kh * param.kw;
 
-``` c++
-__global__ void implgemm(param_t param)
-{
+for (int i = 0; i < rcs; i += 16){
+    int weightOffsetTmp = i + tx;	
+    shWeight[ty][tx] = param.weight[weightOffset + weightOffsetTmp];
+    int cur_c = (i + ty) / kernel_size;
+    int cur_kh = ((i + ty) % kernel_size) / param.kw;
+    int cur_kw = ((i + ty) % kernel_size) % param.kw;
+    int curH = posh_ori + cur_kh;
+    int curW = posw_ori + cur_kw;
+    int inputOffsetTmp = cur_c * intput_size + curH * param.w + curW;
+    shInput[ty][tx] = param.input[inputOffsetTmp + inputOffset];
+}
+```
 
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-    int z = blockIdx.z;
+类似的技巧，我们把主循环划分为 $rcs_{tile} =  16$ 来避免shared memory过大。
 
-    if (x >= param.Oh * param.Ow || y >= param.k || z >= param.n)
+根据上面的参数，
+
+1. 每个线程块会负责计算 $ M_{output'} \in R^{128 * 1 * 128} $ 大小的结果矩阵。
+2. 每个线程会负责 $ M_{output'} \in R^{1 * 1 * 1} $ 大小的结果矩阵。
+3. 每个线程会负责加载 $shmInput[ty][tx] 和 shmWeight[ty][tx]$。
+
+【此处应该有图】
+
+==warp tile==
+
+![](ImplicitGEMM.assets/warptile.png)
+
+如上图所示，红框所示为一个线程束。我们把threadblock(16, 16) 划分为 4 * 2 个形状为【4, 8】的warp tile。横轴对应着维度 Oh * Ow，而纵轴对应着 k。
+
+```c++
+// warp tile
+const uint32_t warp_id = threadIdx.x / 32;
+const uint32_t lane_id = threadIdx.x % 32;
+const uint32_t mma_tid_x = lane_id % 8;
+const uint32_t mma_tid_y = lane_id / 8;
+
+// 每个线程需要负责一个计算 1 * 1 的矩阵
+uint32_t input_lds_addr = (warp_id % 2) * 8 + mma_tid_x ;
+uint32_t weight_lds_addr = (warp_id / 2) * 4 + mma_tid_y ;
+
+// output offset
+int y = weight_lds_addr + by * 16;
+int x = input_lds_addr + bx * 16;
+```
+
+据此，我们每个线程需要计算的结果矩阵 $M_{output}[n][y[x]$。并不影响每个线程sts阶段的过程，仍然是负责加载$shmInput[ty][tx] 和 shmWeight[ty][tx]$。主要是对lds阶段的影响。
+
+**为什么使用warp tile?**
+
+注意观察，一个warp的线程lds阶段访问共享内存的大小，
+
+$访问次数 = 访问shm\_input次数 + 访问shm\_weight次数 = O(warpx + warpy)$
+
+也就是说 warpx + warpy 值越低时，lds消耗的时间越小。显然 warpx = 4, warpy =8 要远比 warpx = 2, warpy = 16好得多。
+
+==thread level==
+
+首先我们来分析一下每个线程块的计算访存比，
+
+$计算量 = N Oh Ow_{tile} * K_{tile} * CRS * 2flops$
+
+$访存量 = （NOhOw_{tile} + K_{tile}）* RCS * 4Bytes$
+
+$计算访存比 = \frac{NOhOw_{tile} * K_{tie}}{2(NOhOw_{tile} + K_{tie})}$
+
+众所周知，计算访存比越大内存访问时间越容易被掩盖。所以，我们必须想办法增大计算访存比。根据上面的公式，增大 $NOhOw_{tile} 和 K_{tie}$，而 $NOhOw_{tile} 和 K_{tile}$其实就是每个线程块计算的结果矩阵的纵轴和横轴大小。
+
+在不改变线程块内线程数量的情况，可以使每个线程处理的数据增多来使之增大。
+
+我们可以让每个线程计算 4 * 4 甚至是 8 * 8 大小的结果矩阵，这里以 8 * 8 大小为例说明。
+
+```tcl
+int blockx = (param.Oh * param.Ow + 127) / 128 ;
+int blocky = (param.k + 127) / 128;
+int blockz = param.n;
+int threadx = 256;         
+int thready = 1;
+int threadz = 1;
+N * Oh * Ow）tile = (K)tile = 128, (CRS)tile = 8.
+/*
+	每个线程块负责计算 形状为 【16 * 8 , 16 * 8】的结果矩阵；
+	每个线程需要负责计算 形状为 【8, 8】 的结果矩阵，同时需要加载 （8 * 128 / 256）* 2 = 8 个数据到
+	共享内存中。
+*/
+```
+
+```c++
+// warp tile
+const uint32_t warp_id = threadIdx.x / 32;
+const uint32_t lane_id = threadIdx.x % 32;
+const uint32_t mma_tid_x = lane_id % 8;
+const uint32_t mma_tid_y = lane_id / 8;
+
+// 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
+uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
+uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+
+// share memory buffer, 每个线程需要负责加载 4 * 2 数据
+__shared__ float shm_weight[8 * 128];    // 列主序 shm_weight[4][32][8]
+__shared__ float shm_input[128 * 8];   // 行主序 shm_input[8][4][32]
+
+uint32_t weight_sts_addr = (tx % 8) * 128 + (tx / 8) * 4 ; // shm_weight[:4][tx/8][tx%8]
+uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx/32][:4][tx%32]
+```
+
+- sts阶段，分别加载input和weight矩阵的4个元素到共享内存。对应在shm_input和shm_weight中的位置，由input_sts_addr和weight_sts_addr提供。
+
+- lds阶段，需要注意的是每个线程计算的并不是一个完整的子矩阵，而是由四个小矩阵组成。(这里以每个线程处理4*4为例作图，不然太大了放不下)还有这里之所以这样处理，完全是因为lds阶段导致Bankconflict需要解决，这里暂不展开。
+
+  ![](ImplicitGEMM.assets/block.png)
+
+### 解决可能出现的Bankconflict
+
+==sts阶段==
+
+**shm_weight**
+
+首先看一下，现在使用的方法，
+
+```c++
+__shared__ float shm_weight[8 * 128];    // 列主序 shm_weight[4][32][8]
+uint32_t weight_sts_addr = (tx % 8) * 128 + (tx / 8) * 4 ; // shm_weight[:4][tx/8][tx%8]
+```
+
+![](ImplicitGEMM.assets/sts_weight_bankconflict.png)
+
+显然这会出现多次bankconflict,可以使用**padding**来解决。
+
+```c++
+__shared__ float shm_weight[8 * 132];    // 列主序 shm_weight[4][32][8]
+uint32_t weight_sts_addr = (tx % 8) * 132 + (tx / 8) * 4 ; // shm_weight[:4][tx/8][tx%8]
+```
+
+![](ImplicitGEMM.assets/sts_weight_bankconflict_padding.png)
+
+图中显示了**warp 0**的访存布局，可以划分为4次内存访问【0-7，8-15， 16-23， 24-31】，不再会出现bankconflict。其实我不太清楚，这些内存访问会用什么算法来决单次访问那些数据。不过上述图中，肯定在存在着这样的方法，不会出现bankconflict。
+
+(按我的理解，这里不出现bankconflict，必须要使用float4来加载内存，不然并不能解决bankconflict.)
+
+**shm_input**
+
+首先看一下，现在使用的方法，
+
+```C++
+__shared__ float shm_input[128 * 8];   // 行主序 shm_input[8][4][32]
+uint32_t input_sts_addr = (tx / 32) * 128 + (tx % 32);  // shm_input[tx/32][:4][tx%32]
+```
+
+![](ImplicitGEMM.assets/sts_input_bankconflict.png)
+
+如图，展示了第一个warp线程的第一个访问请求的情况。类似的也可在表中标注，很明显不存在Bankconflict.
+
+```c++
+int cur_c = (crs + tx / 32) / weight_channel_size;
+        int cur_ih = ((crs + tx / 32) % weight_channel_size) / param.kw;
+        int cur_iw = ((crs + tx / 32) % weight_channel_size) % param.kw;
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            int cur_h = pos_ori_h[i] + cur_ih;
+            int cur_w = pos_ori_w[i] + cur_iw;
+            int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+            if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+                // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+                input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+            }
+            else {
+                input_ldg_reg[i] = 0.0;
+            }
+        }
+
+```
+
+(这里显然无法使用float4，也不会出现bankconflict.)
+
+==lds阶段==
+
+```c++
+// 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
+uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
+uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+
+// 计算数据
+// 读取share memory到reg
+#pragma unroll
+for (int subcrs = 0; subcrs < 8; subcrs++) {
+    #pragma unroll
+    for (int i = 0; i < 4; i++)
     {
-        return;
+        weight_temp[i] = shm_weight[weight_lds_addr + subcrs * 132 + i];
+        weight_temp[i + 4] = shm_weight[weight_lds_addr + subcrs * 132 + i + 16];
+    }
+    #pragma unroll
+    for (int i = 0; i < 4;i++)
+    {
+        input_temp[i] = shm_input[input_lds_addr + subcrs * 128 + i];
+        input_temp[i + 4] = shm_input[input_lds_addr + subcrs * 128 + i + 32];
     }
 
-    // 当前线程处理的数据点在oh、ow上的坐标
-    int posOh = x / param.Ow;
-    int posOw = x % param.Ow;
+    // 转换为外积
+    #pragma unroll
+    for (int i = 0; i < 8; i++) {
+        #pragma unroll
+        for (int j = 0; j < 8; j++) {
+            if (i == 0 && j == 0     && weight_lds_addr + by * 128 == 0 && input_lds_addr + bx * 128 == 0){
+                printf("step %d : %f += %f * %f\n",subcrs + crs, output_temp[i][j], input_temp[j] , weight_temp[i]);
+            }
+            output_temp[i][j] += weight_temp[i] * input_temp[j];
 
-    int posh_ori = posOh * param.u - param.p;
-    int posw_ori = posOw * param.v - param.q;
+        }
+    }
+}
+```
 
-    float sum = 0.0;
+![](ImplicitGEMM.assets/lds_bankconfilict.png)
 
-    int inOffset = z * param.c * param.h * param.w + posh_ori * param.w + posw_ori;
-    int weiOffset = y * param.c * param.r * param.s;
-    int inChannelOffset = param.h * param.w;
-    int weightChannelOffset = param.r * param.s;
+如图是 $subcrs = 0$ 时的情况，需要注意的是当 $subcrs$ 变化时，Bank of shm_weight 会有着 $ 4 * subcrs $ 的偏移。当然，这不影响数据访问，都不会出现 Bank conflict 的情况。
 
-    for (int i = 0; i < param.r; i++)
-    {
-        for (int j = 0; j < param.s; j++)
-        {
-            int posh_real = posh_ori + i;
-            int posw_real = posw_ori + j; 
 
-            if (posh_real >= 0 && posw_real >= 0 && posw_real < param.w && posh_real < param.h)
-            {
-                int inOffsetTmp = inOffset;
-                int weiOffsetTmp = weiOffset;
-                for (int channel = 0; channel < param.c; channel++)
-                {
-                    sum += param.input[inOffsetTmp + i * param.w + j] * param.weight[weiOffsetTmp + i * param.s + j];
-                    inOffsetTmp += inChannelOffset;
-                    weiOffsetTmp += weightChannelOffset;
-                }
+
+### Double buffering
+
+双缓冲共享内存，可以通过使用计算时间掩盖掉除第一次ldg的时间之外的内存访问时间。我感觉这个技术很常见，不再介绍原理。会着重介绍下实现的细节以及需要注意的问题。
+
+```c++
+// share memory buffer, 每个线程需要负责加载 4 * 2 数据
+__shared__ float shm_weight[2][8 * 132];    // 列主序 shm_weight[4][32][8]
+__shared__ float shm_input[2][128 * 8];   // 行主序 shm_input[8][4][32]
+
+// 分离 ldg 和 sts
+float weight_ldg_reg[4];
+float input_ldg_reg[4];
+
+/*
+	先预加载一个数据 
+*/
+// 加载数据 
+// ldg stage
+int crs = 0;
+int weight_offset_tmp = crs + tx % 8;
+#pragma unroll
+for (int i = 0; i < 4; i++)
+{
+    if ( weight_offset_tmp < kernel_size && by * 128 + tx / 8 * 4 + i < param.k ) {
+        weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size];
+    } 
+    else {
+        weight_ldg_reg[i] = 0.0;
+    }   
+    // weight_ldg_reg[i] = param.weight[weight_offset + weight_offset_tmp + i * kernel_size]; // 不清楚为什么不判断越界也可以
+}
+
+int cur_c = (crs + tx / 32) / weight_channel_size;
+int cur_ih = ((crs + tx / 32) % weight_channel_size) / param.kw;
+int cur_iw = ((crs + tx / 32) % weight_channel_size) % param.kw;
+#pragma unroll
+for (int i = 0; i < 4; i++) {
+    int cur_h = pos_ori_h[i] + cur_ih;
+    int cur_w = pos_ori_w[i] + cur_iw;
+    int input_offset_tmp = cur_c * input_channel_size + cur_h * param.w + cur_w;
+
+    if (cur_h >= 0 && cur_w >= 0 && cur_h < param.h && cur_w < param.w) {
+    // shm_input[input_sts_addr + i * 32] = param.input[input_offset_tmp + input_offset];
+        input_ldg_reg[i] = param.input[input_offset_tmp + input_offset];
+    }
+    else {
+        input_ldg_reg[i] = 0.0;
+    }
+}
+
+// sts
+for (int i = 0; i < 4; i++){
+    shm_input[0][input_sts_addr + i * 32] = input_ldg_reg[i];
+    shm_weight[0][weight_sts_addr + i] = weight_ldg_reg[i];
+}
+__syncthreads();
+
+//lds stage , for subcrs = 0, crs = 0
+#pragma unroll
+for (int i = 0; i < 4; i++) {
+    input_temp[0][i] = shm_input[0][input_lds_addr + i];
+    input_temp[0][i + 4] = shm_input[0][input_lds_addr + i + 32];
+}
+#pragma unroll
+for (int i = 0; i < 4; i++) {
+    weight_temp[0][i] = shm_weight[0][weight_lds_addr + i];
+    weight_temp[0][i + 4] = shm_weight[0][weight_lds_addr + i + 16];
+}
+
+// 主循环，注意每个循环内 负责一个 CRS tile 的计算，以及下一个循环需要的数据ldf + sts + (下个循环第一个lds使用的)
+// 
+// main loop
+for (crs = 0; crs < kernel_size; crs += 8) {
+    // 加载数据 
+    // ldg stage
+    //	...,参考上面
+    
+    // lds + compute 
+	int load_flag = write_flag ^ 1; // 对应这个循环计算使用的数据标志位
+    #pragma unroll
+    for (int subcrs = 0; subcrs < 8 - 1; subcrs++) {
+        // lds下个循环使用的数据
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            weight_temp[(subcrs + 1) % 2][i] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i]; 
+            weight_temp[(subcrs + 1) % 2][i + 4] = shm_weight[load_flag][weight_lds_addr + (subcrs + 1) * 132 + i + 16]; 
+        }
+
+        #pragma unroll
+        for (int i = 0; i < 4; i++) {
+            input_temp[(subcrs + 1) % 2][i] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i]; 
+            input_temp[(subcrs + 1) % 2][i + 4] = shm_input[load_flag][input_lds_addr + (subcrs + 1) * 128 + i + 32];
+        }
+
+        // compute
+        #pragma unroll
+        for (int i = 0; i < 8; i++) {
+            #pragma unroll
+            for (int j = 0; j < 8; j++) {
+                output_temp[i][j] += input_temp[subcrs % 2][j] * weight_temp[subcrs % 2][i];
             }
         }
     }
-
-    // 计算输出偏移
-    int outOffset = z * param.k * param.Oh * param.Ow + y * param.Oh * param.Ow + x;
-    param.output[outOffset] = sum;
-}
-```
-
-
-
-### 2.2 *ImplGEMM_1 Thread-blocked GEMM*
-
-线程划分保持不变，但是引入了**共享内存**来减少重复内存的读取。为了方便后续的优化，我们首先把CRS循环恢复为一个完整的循环。
-
-kernel 函数如下：
-
-``` c++
-__global__ void implgemm_kernel_2(param_t param) {
-
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-    int z = blockIdx.z;
-
-    if (x >= param.Oh || y >= param.k || z >= param.n) {
-        return;
+    
+    /*
+            上面其实还有一个循环没有计算，这里在前面塞了一个sts阶段掩藏延迟，和main loop外的sts一样的，为下一个 lds + compute 
+            第一个循环计算预加载数据。
+    */
+    for (int i = 0; i < 4; i++)
+    {
+        shm_weight[write_flag][weight_sts_addr + i] = weight_ldg_reg[i];
+        shm_input[write_flag][input_sts_addr + i * 32] = input_ldg_reg[i];
     }
 
-    int oh = x / param.Ow;
-    int ow = x % param.Ow;
-    int posh_ori = oh * param.stride_h - param.pad_h;
-    int posw_ori = ow * param.stride_w - param.pad_w;
+    __syncthreads();  // 必须等待数据加载完成，不然lds会出错
 
-    float sum = 0.0;
+    write_flag = write_flag ^ 1;
 
-    int inputOffset = z * param.h * param.w * param.c;
-    int weightOffset = y * param.c * param.kh * param.kw;
+    // lds下个循环使用的数据
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        weight_temp[0][i] = shm_weight[load_flag ^ 1][weight_lds_addr + i]; 
+        weight_temp[0][i + 4] = shm_weight[load_flag ^ 1][weight_lds_addr + i + 16]; 
+    }
 
-    int intput_size = param.h * param.w;
-    int kernel_size = param.kh * param.kw;
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        input_temp[0][i] = shm_input[load_flag ^ 1][input_lds_addr + i]; 
+        input_temp[0][i + 4] = shm_input[load_flag ^ 1][input_lds_addr + i + 32];
+    }
 
-    for (int i = 0; i < param.kh * param.kw * param.c; i++) {
-
-        int weightOffsetTmp = i;
-        int cur_c = i / kernel_size;
-        int cur_kh = (i % kernel_size) / param.kw;
-        int cur_kw = (i % kernel_size) % param.kw;
-        int curH = posh_ori + cur_kh;
-        int curW = posw_ori + cur_kw;
-        int inputOffsetTmp = cur_c * intput_size + curH * param.w + curW;
-
-        if (curH >= 0 && curW >= 0 && curH < param.h && curW < param.w)
-        {
-            sum += param.input[inputOffsetTmp + inputOffset] * param.weight[weightOffsetTmp + weightOffset];
+    /*
+            好啦，终于可以把 当前循环最后一个subcrs的数据计算完了.
+            subcrs = 7
+   */
+    #pragma unroll
+    for (int i = 0; i < 8; i++) {
+        #pragma unroll
+        for (int j = 0; j < 8; j++) {
+            output_temp[i][j] += input_temp[1][j] * weight_temp[1][i];
         }
-
     }
-
-    // 计算输出偏移
-    int outOffset = z * param.k * param.Oh * param.Ow + y * param.Oh * param.Ow + x;
-    param.output[outOffset] = sum;
-
 }
 ```
 
-接下来，我们对每个Block设置了两个Shared Memory Buffer来暂存读取的数据。
+代码有点长，但是很好理解。需要注意的是，每次提前 ldg + sts 下个循环需要的数据，需要存放在write_flag对应的位置。每次循环中 lds + compute，使用的是上次循环加载的数据，对应的write_flag ^ 1对应的位置。每次ldg + sts，必须等待所有线程完成，才能继续执行下面的代码。
 
-![image-20240809151123141](ImplicitGEMM.assets/image-20240809151123141.png)
+一些有趣技巧，需要留意：
 
-如图，每个Thread Block会负责类似的 蓝色矩阵和橙色矩阵的乘积任务。 于是我们将这个乘积划分为若干个 粉红色矩阵乘积 的和形式，经过若干次迭代相加得到最终的结果。**每次迭代中，线程块内的每个线程都负责将数据加载到共享内存， 并从共享内存读取数据， 计算两个向量的向量积。**
+- ldg 和 sts 分离，提高内存访问效率。避免sts指令等待ldg指令导致的bubble；
 
-![image-20240809153705808](ImplicitGEMM.assets/image-20240809153705808.png)
+- warp tile可以使用z字排布，更有利于数据的广播。（说实话，没看懂，即使不Z字排布仍旧可以广播）
 
-**计算次数** ：
+  ```c++
+  // warp tile, z字排布
+  const uint32_t warp_id = threadIdx.x / 32;
+  const uint32_t lane_id = threadIdx.x % 32;
+  const uint32_t mma_tid_x = (lane_id / 2) % 8;
+  const uint32_t mma_tid_y = (lane_id / 16) * 2 + (lane_id % 2);
+  
+  // 每个线程需要负责一个 8 * 8 的矩阵， 实际上这里划分为 4个 4 * 4 的矩阵
+  uint32_t input_lds_addr = (warp_id % 2) * (8 * 8) + mma_tid_x * 4 ;
+  uint32_t weight_lds_addr = (warp_id / 2) * (8 * 4) + mma_tid_y * 4;
+  int y = weight_lds_addr + by * 128;
+  int x = input_lds_addr + bx * 128;
+  ```
 
- $N * K * C * R * S * Oh * Ow $
-
-**访存次数** ：
-
-线程块数 * 每个线程块需要訪存的次数 =  $\frac{K}{tilex} * \frac{N * Oh *Ow}{tiley} * (tiley * CRS + tilex *CRS)=\frac{tilex + tiley}{tilex * tiley} * N * K * Oh * Ow * CRS$
-
-**kernel 函数**
-
-``` 
-
-```
-
-
-
-## 2.3 *ImplGEMM_2 (warp-level)*
+  
 
 
 
-## 2.5 ImplGEMM_final
+
+
+
+
+
 
